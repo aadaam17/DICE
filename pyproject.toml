@@ -1,0 +1,78 @@
+[project]
+name = "dice-chain-executor"
+version = "0.1.0"
+description = "Deterministic Intelligent Chain Executor, a Python TUI for EVM job orchestration."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+authors = [
+    { name = "DICE Contributors" },
+]
+maintainers = [
+    { name = "DICE Contributors" },
+]
+keywords = [
+    "blockchain",
+    "evm",
+    "automation",
+    "tui",
+    "daemon",
+    "web3",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Environment :: Console :: Curses",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Scheduling",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: System :: Monitoring",
+]
+dependencies = [
+    "textual>=0.80.0",
+    "cryptography>=42.0.0",
+    "web3>=6.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+publish = [
+    "build>=1.2.0",
+    "twine>=5.0.0",
+]
+
+[project.scripts]
+dice = "dice.app.main:run"
+dice-daemon = "dice.service.daemon:run"
+
+[project.urls]
+Homepage = "https://github.com/your-org/dice"
+Documentation = "https://github.com/your-org/dice/tree/main/docs"
+Issues = "https://github.com/your-org/dice/issues"
+Source = "https://github.com/your-org/dice"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
