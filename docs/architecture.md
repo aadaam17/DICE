@@ -91,6 +91,7 @@ custom workflow. Each job type is a plugin registered in `dice.jobs`.
 Every plugin exposes:
 
 - metadata
+- form schema hints for the TUI
 - default workflow template
 - validation
 - lifecycle methods: start, stop, pause, resume, execute
@@ -107,7 +108,9 @@ Built-in plugins:
 - `event_trigger`
 - `custom_workflow`
 
-The TUI and daemon discover job types from the registry rather than hardcoding a fixed list.
+The TUI and daemon discover job types from the registry rather than hardcoding a fixed list. The
+same metadata includes field hints, so the wizard can show different guidance for `contract_call`,
+`token_sweep`, `wallet_watch`, and other plugins.
 
 ## Workflow Engine
 
@@ -136,8 +139,20 @@ Supported action categories:
 - swap
 - bridge
 
-The engine processes actions sequentially. Concrete blockchain handlers can be injected behind the
-action layer as the execution system matures.
+The execution layer processes actions sequentially through `dice.execution.actions`. Built-in action
+handlers currently cover:
+
+- contract call
+- native transfer
+- ERC20 transfer
+- wait
+- notify
+- withdraw
+- sweep
+
+Real EVM contract calls use ABI-backed transaction building. Native and ERC20 transfers have EVM
+transaction builders. Mock execution uses the same action dispatcher but broadcasts deterministic
+mock transactions.
 
 ## Chain Adapters
 
@@ -232,6 +247,15 @@ reference in the job file:
 ```json
 "private_key_ref": "secret://wallets/job-0001"
 ```
+
+DICE also supports reusable named wallet refs:
+
+```json
+"private_key_ref": "secret://wallets/base-sweeper"
+```
+
+That lets multiple jobs use the same encrypted wallet without re-entering the private key. The
+wallet vault list exposes refs, labels, and addresses only. It never returns decrypted private keys.
 
 Secret encryption requires `DICE_SECRET_PASSWORD` to be set before importing private keys. The same
 password must be available to the daemon later when execution needs to decrypt the key for signing.

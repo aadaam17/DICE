@@ -3,6 +3,7 @@ from __future__ import annotations
 from dice.adapters.base import ChainAdapter
 from dice.core.models import JobConfig
 from dice.core.secrets import SecretStore
+from dice.execution.actions import ActionContext, WorkflowActionDispatcher
 from dice.execution.broadcaster import Broadcaster
 from dice.execution.builder import TransactionBuilder
 from dice.execution.signer import PrivateKeySigner
@@ -14,8 +15,22 @@ class ExecutionEngine:
         self.signer = PrivateKeySigner(secret_store) if secret_store else None
         self.builder = TransactionBuilder()
         self.broadcaster = Broadcaster(adapter)
+        self.dispatcher = WorkflowActionDispatcher()
 
     async def execute(self, job: JobConfig) -> str:
+        if job.workflow and job.workflow.actions:
+            context = ActionContext(
+                adapter=self.adapter,
+                signer=self.signer,
+                builder=self.builder,
+                broadcaster=self.broadcaster,
+            )
+            results = await self.dispatcher.execute(job, job.workflow.actions, context)
+            for result in reversed(results):
+                if result.tx_hash:
+                    return result.tx_hash
+            return "no-transaction"
+
         if hasattr(self.adapter, "build_transaction"):
             if self.signer is None:
                 raise RuntimeError("Real EVM execution requires a signer")

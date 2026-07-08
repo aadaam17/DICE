@@ -12,11 +12,14 @@ This first build provides:
 - A daemon/client architecture so jobs can outlive the TUI
 - A workflow model built from triggers, conditions, and actions
 - A job plugin registry for extensible automation templates
+- Job-type form schemas used by the TUI for dynamic wizard guidance
 - Chain adapter interfaces and EVM chain profiles
 - A Web3-based EVM adapter for real RPC execution
 - Encrypted private-key references and a signer layer
+- A reusable wallet vault for named encrypted wallet keys
 - Preflight checks before jobs start
 - Non-broadcast transaction simulation with gas and max-cost estimates
+- Workflow action handlers for contract calls, transfers, waits, notifications, withdrawals, and sweeps
 - Watcher, trigger, builder, broadcaster, and executor boundaries
 - A Textual dashboard for viewing and starting/stopping jobs
 - A `mock://` execution path suitable for local development
@@ -68,7 +71,8 @@ $env:DICE_SECRET_PASSWORD = "use-a-long-random-password"
 ```
 
 DICE encrypts imported private keys into `storage/secrets` and stores only a `secret://...`
-reference in each job file.
+reference in each job file. New jobs can reuse an existing vault reference such as
+`secret://wallets/base-sweeper` instead of re-entering the private key.
 
 `DICE_SECRET_PASSWORD` is the master password for that encryption. When you enter a private key,
 DICE derives an encryption key from this password, encrypts the private key, and writes only the
@@ -144,7 +148,7 @@ DICE treats job types as plugins. Built-in plugins include:
 - Event Trigger
 - Custom Workflow
 
-Each plugin provides metadata and a default workflow. The long-term UI flow is:
+Each plugin provides metadata, form hints, and a default workflow. The UI flow is:
 
 ```text
 Select Job Type

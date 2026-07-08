@@ -20,6 +20,15 @@ def test_builtin_plugins_are_discoverable():
     }.issubset(keys)
 
 
+def test_builtin_plugins_expose_form_schemas():
+    load_builtin_plugins()
+    metadata = {item.key: item for item in registry.list()}
+
+    assert metadata["contract_call"].form_fields
+    assert any(field["key"] == "contract_address" for field in metadata["contract_call"].form_fields)
+    assert any(field["key"] == "token_contract" for field in metadata["token_sweep"].form_fields)
+
+
 def test_manager_assigns_default_workflow_for_plugin_jobs(tmp_path):
     manager = JobManager(JobStore(tmp_path))
     job = JobConfig(

@@ -85,6 +85,16 @@ class DiceService:
                 request["private_key"],
             )
             return {"ok": True, "private_key_ref": private_key_ref}
+        if command == "import_wallet":
+            private_key_ref = self.manager.import_wallet(
+                request["wallet_id"],
+                request.get("label", request["wallet_id"]),
+                request.get("address"),
+                request["private_key"],
+            )
+            return {"ok": True, "private_key_ref": private_key_ref}
+        if command == "list_wallets":
+            return {"ok": True, "wallets": [wallet.to_dict() for wallet in self.manager.list_wallets()]}
         if command == "next_job_id":
             return {"ok": True, "job_id": self.manager.next_id()}
         if command == "preflight_job":

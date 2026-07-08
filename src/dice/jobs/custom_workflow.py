@@ -3,7 +3,7 @@ from __future__ import annotations
 from dice.core.registry import register_job
 from dice.core.workflow import ActionSpec, TriggerSpec, WorkflowActionKind, WorkflowSpec, WorkflowTriggerKind
 from dice.jobs.base import JobPlugin
-from dice.jobs.templates import metadata
+from dice.jobs.templates import field, metadata
 
 
 @register_job
@@ -33,6 +33,11 @@ class CustomWorkflowJob(JobPlugin):
                 WorkflowActionKind.WITHDRAW,
                 WorkflowActionKind.SWAP,
                 WorkflowActionKind.BRIDGE,
+            ],
+            [
+                field("trigger_kind", "Trigger", "trigger", "manual"),
+                field("function_name", "Primary action", "execution", "notify"),
+                field("arguments", "Action arguments", "execution", "message, value"),
             ],
         )
 

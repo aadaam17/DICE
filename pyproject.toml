@@ -53,10 +53,10 @@ dice = "dice.app.main:run"
 dice-daemon = "dice.service.daemon:run"
 
 [project.urls]
-Homepage = "https://github.com/your-org/dice"
-Documentation = "https://github.com/your-org/dice/tree/main/docs"
-Issues = "https://github.com/your-org/dice/issues"
-Source = "https://github.com/your-org/dice"
+Homepage = "https://github.com/aadaam17/dice"
+Documentation = "https://github.com/aadaam17/dice/docs"
+Issues = "https://github.com/aadaam17/dice/issues"
+Source = "https://github.com/aadaam17/dice"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

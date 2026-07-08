@@ -16,6 +16,22 @@ def test_secret_store_round_trips_private_key(tmp_path, monkeypatch):
     assert store.load_private_key(ref) == private_key
 
 
+def test_secret_store_lists_named_wallets(tmp_path, monkeypatch):
+    pytest.importorskip("cryptography")
+    monkeypatch.setenv("DICE_SECRET_PASSWORD", "test-password")
+    store = SecretStore(tmp_path)
+    private_key = "0x" + "2" * 64
+
+    ref = store.store_wallet("Base Sweeper", "Base Sweeper", "0xabc", private_key)
+    wallets = store.list_wallets()
+
+    assert ref == "secret://wallets/BaseSweeper"
+    assert wallets[0].ref == ref
+    assert wallets[0].label == "Base Sweeper"
+    assert wallets[0].address == "0xabc"
+    assert store.load_private_key(ref) == private_key
+
+
 def test_secret_store_requires_master_password(tmp_path, monkeypatch):
     pytest.importorskip("cryptography")
     monkeypatch.delenv("DICE_SECRET_PASSWORD", raising=False)

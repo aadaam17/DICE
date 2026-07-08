@@ -288,6 +288,7 @@ class Dashboard(Container):
     def _show_settings(self) -> None:
         chains = ", ".join(profile.name for profile in PROFILES.values())
         job_types = self._job_type_summary()
+        wallets = self._wallet_summary()
         self._clear_inputs()
         self._set_wizard_controls(False)
         self._set_workflow(
@@ -301,6 +302,8 @@ class Dashboard(Container):
                     f"Supported chains: {chains}",
                     "",
                     f"Job plugins: {job_types}",
+                    "",
+                    f"Wallet vault: {wallets}",
                 ]
             ),
         )
@@ -352,6 +355,7 @@ class Dashboard(Container):
     def _wizard_step_content(self) -> tuple[str, str, list[str]]:
         chain_list = "\n".join(f"- {profile.name} ({key})" for key, profile in PROFILES.items())
         job_type_list = self._job_type_option_text()
+        job_type = self._selected_job_type()
         steps = [
             (
                 "Select Job Type",
@@ -404,7 +408,22 @@ class Dashboard(Container):
                 ["Replacement percent", "", ""],
             ),
         ]
-        return steps[self.wizard_step]
+        title, body, placeholders = steps[self.wizard_step]
+        step_name = {
+            3: "wallet",
+            4: "asset",
+            5: "contract",
+            6: "trigger",
+            7: "execution",
+        }.get(self.wizard_step)
+        if step_name:
+            hints = self._schema_fields_for_step(job_type, step_name)
+            if hints:
+                body = body + "\n\nFor this job type:\n" + "\n".join(
+                    f"- {item['label']}: {item['placeholder']}" for item in hints
+                )
+                placeholders = self._dynamic_placeholders(step_name, placeholders, hints)
+        return title, body, placeholders
 
     def _wizard_step_values(self) -> list[str]:
         values = {
@@ -422,18 +441,18 @@ class Dashboard(Container):
                 self.wizard_data.get("destination", ""),
             ],
             4: [
-                self.wizard_data.get("asset_kind", "native"),
+                self.wizard_data.get("asset_kind", self._job_type_default("asset_kind", "native")),
                 self.wizard_data.get("token_contract", ""),
                 self.wizard_data.get("token_symbol", ""),
             ],
             5: [self.wizard_data.get("contract_address", ""), self.wizard_data.get("abi_path", ""), ""],
             6: [
-                self.wizard_data.get("trigger_kind", "manual"),
+                self.wizard_data.get("trigger_kind", self._job_type_default("trigger_kind", "manual")),
                 self.wizard_data.get("trigger_param_1", ""),
                 self.wizard_data.get("trigger_param_2", ""),
             ],
             7: [
-                self.wizard_data.get("function_name", "withdraw"),
+                self.wizard_data.get("function_name", self._job_type_default("function_name", "withdraw")),
                 self.wizard_data.get("function_arguments", ""),
                 "",
             ],
@@ -461,18 +480,18 @@ class Dashboard(Container):
             self.wizard_data["wallet_address"] = values[2] or ZERO_ADDRESS
             self.wizard_data["destination"] = values[3] or ZERO_ADDRESS
         elif self.wizard_step == 4:
-            self.wizard_data["asset_kind"] = values[0] or "native"
+            self.wizard_data["asset_kind"] = values[0] or self._job_type_default("asset_kind", "native")
             self.wizard_data["token_contract"] = values[1]
             self.wizard_data["token_symbol"] = values[2]
         elif self.wizard_step == 5:
             self.wizard_data["contract_address"] = values[0]
             self.wizard_data["abi_path"] = values[1]
         elif self.wizard_step == 6:
-            self.wizard_data["trigger_kind"] = values[0] or "manual"
+            self.wizard_data["trigger_kind"] = values[0] or self._job_type_default("trigger_kind", "manual")
             self.wizard_data["trigger_param_1"] = values[1]
             self.wizard_data["trigger_param_2"] = values[2]
         elif self.wizard_step == 7:
-            self.wizard_data["function_name"] = values[0] or "withdraw"
+            self.wizard_data["function_name"] = values[0] or self._job_type_default("function_name", "withdraw")
             self.wizard_data["function_arguments"] = values[1]
         elif self.wizard_step == 8:
             self.wizard_data["gas_mode"] = values[0] or "standard"
@@ -493,11 +512,7 @@ class Dashboard(Container):
                 return
             private_key = self.wizard_data.get("private_key", "").strip()
             if private_key:
-                job.wallet.private_key_ref = self.manager.import_private_key(
-                    job.id,
-                    job.wallet.name,
-                    private_key,
-                )
+                job.wallet.private_key_ref = self._store_or_reuse_wallet_ref(job, private_key)
             self.manager.create_job(job)
         except JobValidationError as exc:
             self._set_details("Cannot save job: " + "; ".join(exc.errors))
@@ -510,12 +525,21 @@ class Dashboard(Container):
         action = "Updated" if self.editing_job_id else "Saved"
         self._set_details(f"{action} {job.id}: {job.name}")
 
+    def _store_or_reuse_wallet_ref(self, job: JobConfig, value: str) -> str:
+        if value.startswith("secret://wallets/"):
+            return value
+        wallet_id = self._wallet_id(job.wallet.name)
+        import_wallet = getattr(self.manager, "import_wallet", None)
+        if callable(import_wallet):
+            return import_wallet(wallet_id, job.wallet.name, job.wallet.address, value)
+        return self.manager.import_private_key(job.id, job.wallet.name, value)
+
     def _build_job_from_wizard(self) -> JobConfig:
         chain = self.wizard_data.get("chain", "ethereum")
         if chain not in PROFILES:
             chain = "ethereum"
-        asset_kind = self._asset_kind(self.wizard_data.get("asset_kind", "native"))
-        trigger_kind = self._trigger_kind(self.wizard_data.get("trigger_kind", "manual"))
+        asset_kind = self._asset_kind(self.wizard_data.get("asset_kind", self._job_type_default("asset_kind", "native")))
+        trigger_kind = self._trigger_kind(self.wizard_data.get("trigger_kind", self._job_type_default("trigger_kind", "manual")))
         gas_mode = self._gas_mode(self.wizard_data.get("gas_mode", "standard"))
         wallet_name = self.wizard_data.get("wallet_name", "Wallet")
         job_id = self.editing_job_id or self.manager.next_id()
@@ -541,7 +565,7 @@ class Dashboard(Container):
             else None,
             trigger=TriggerConfig(kind=trigger_kind, params=self._trigger_params(trigger_kind)),
             execution=ExecutionConfig(
-                function_name=self.wizard_data.get("function_name", "withdraw"),
+                function_name=self.wizard_data.get("function_name", self._job_type_default("function_name", "withdraw")),
                 arguments=self._split_arguments(self.wizard_data.get("function_arguments", "")),
                 asset_kind=asset_kind,
                 token_contract=self.wizard_data.get("token_contract") or None,
@@ -666,8 +690,8 @@ class Dashboard(Container):
                 f"Chain: {self.wizard_data.get('chain', 'ethereum')}",
                 f"Wallet: {self.wizard_data.get('wallet_name', 'Wallet')}",
                 f"Destination: {self.wizard_data.get('destination', ZERO_ADDRESS)}",
-                f"Unlock: {self.wizard_data.get('trigger_kind', 'manual')}",
-                f"Withdraw: {self.wizard_data.get('function_name', 'withdraw')}()",
+                f"Unlock: {self.wizard_data.get('trigger_kind', self._job_type_default('trigger_kind', 'manual'))}",
+                f"Action: {self.wizard_data.get('function_name', self._job_type_default('function_name', 'withdraw'))}()",
                 f"Gas: {self.wizard_data.get('gas_mode', 'standard')}",
             ]
         )
@@ -723,6 +747,11 @@ class Dashboard(Container):
         except ValueError:
             return default
 
+    def _wallet_id(self, value: str) -> str:
+        normalized = value.strip().lower().replace(" ", "-")
+        safe = "".join(character for character in normalized if character.isalnum() or character in "-_")
+        return safe or "wallet"
+
     def _first_trigger_param(self, params: dict[str, Any]) -> str:
         for key in ["event_name", "timestamp", "block", "function_name", "address"]:
             if key in params:
@@ -736,26 +765,135 @@ class Dashboard(Container):
             return ", ".join(str(item) for item in params["arguments"])
         return ""
 
-    def _job_type_summary(self) -> str:
+    def _selected_job_type(self) -> str:
+        return str(self.wizard_data.get("job_type", "contract_call") or "contract_call")
+
+    def _job_type_default(self, key: str, fallback: str) -> str:
+        defaults = {
+            "contract_call": {
+                "trigger_kind": "manual",
+                "function_name": "claim",
+                "asset_kind": "native",
+            },
+            "stake_sweep": {
+                "trigger_kind": "claimable_function",
+                "function_name": "withdraw",
+                "asset_kind": "native",
+            },
+            "token_sweep": {
+                "trigger_kind": "balance_change",
+                "function_name": "transfer",
+                "asset_kind": "erc20",
+            },
+            "scheduled_transfer": {
+                "trigger_kind": "timestamp",
+                "function_name": "transfer",
+                "asset_kind": "native",
+            },
+            "wallet_watch": {
+                "trigger_kind": "balance_change",
+                "function_name": "notify",
+                "asset_kind": "native",
+            },
+            "balance_trigger": {
+                "trigger_kind": "balance_change",
+                "function_name": "notify",
+                "asset_kind": "native",
+            },
+            "event_trigger": {
+                "trigger_kind": "event",
+                "function_name": "claim",
+                "asset_kind": "native",
+            },
+            "custom_workflow": {
+                "trigger_kind": "manual",
+                "function_name": "notify",
+                "asset_kind": "native",
+            },
+        }
+        return defaults.get(self._selected_job_type(), {}).get(key, fallback)
+
+    def _schema_fields_for_step(self, job_type: str, step: str) -> list[dict[str, str]]:
+        for item in self._job_type_items():
+            if self._metadata_value(item, "key") != job_type:
+                continue
+            fields = self._metadata_value(item, "form_fields") or []
+            result: list[dict[str, str]] = []
+            if not isinstance(fields, list):
+                return result
+            for field in fields:
+                if not isinstance(field, dict) or field.get("step") != step:
+                    continue
+                result.append(
+                    {
+                        "key": str(field.get("key", "")),
+                        "label": str(field.get("label", field.get("key", ""))),
+                        "placeholder": str(field.get("placeholder", "")),
+                    }
+                )
+            return result
+        return []
+
+    def _dynamic_placeholders(
+        self,
+        step: str,
+        placeholders: list[str],
+        hints: list[dict[str, str]],
+    ) -> list[str]:
+        by_key = {item["key"]: item["placeholder"] for item in hints}
+        keys_by_step = {
+            "wallet": ["wallet_name", "private_key", "wallet_address", "destination"],
+            "asset": ["asset_kind", "token_contract", "token_symbol"],
+            "contract": ["contract_address", "abi_path", ""],
+            "trigger": ["trigger_kind", "trigger_param_1", "trigger_param_2"],
+            "execution": ["function_name", "arguments", ""],
+        }
+        keys = keys_by_step.get(step, [])
+        updated = list(placeholders)
+        for index, key in enumerate(keys):
+            if index < len(updated) and key in by_key:
+                updated[index] = by_key[key]
+        return updated
+
+    def _job_type_items(self) -> list[object]:
         provider = getattr(self.manager, "available_job_types", None)
         if provider is None:
-            return "unavailable"
-        items = provider()
+            return []
+        return list(provider())
+
+    def _metadata_value(self, item: object, key: str) -> object:
+        if isinstance(item, dict):
+            return item.get(key)
+        return getattr(item, key, None)
+
+    def _job_type_summary(self) -> str:
         names: list[str] = []
-        for item in items:
+        for item in self._job_type_items():
             if hasattr(item, "name"):
                 names.append(str(item.name))
             elif isinstance(item, dict):
                 names.append(str(item.get("name", item.get("key", "unknown"))))
         return ", ".join(names) if names else "none"
 
-    def _job_type_option_text(self) -> str:
-        provider = getattr(self.manager, "available_job_types", None)
+    def _wallet_summary(self) -> str:
+        provider = getattr(self.manager, "list_wallets", None)
         if provider is None:
-            return "- contract_call (Contract Call)"
-        items = provider()
+            return "unavailable"
+        try:
+            wallets = provider()
+        except Exception:
+            return "unavailable"
+        labels: list[str] = []
+        for wallet in wallets:
+            if isinstance(wallet, dict):
+                labels.append(str(wallet.get("ref", wallet.get("label", "wallet"))))
+            elif hasattr(wallet, "ref"):
+                labels.append(str(wallet.ref))
+        return ", ".join(labels) if labels else "empty"
+
+    def _job_type_option_text(self) -> str:
         rows: list[str] = []
-        for item in items:
+        for item in self._job_type_items():
             if hasattr(item, "key") and hasattr(item, "name"):
                 rows.append(f"- {item.key} ({item.name})")
             elif isinstance(item, dict):

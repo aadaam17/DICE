@@ -8,7 +8,7 @@ from dice.core.logging import JobLogStore
 from dice.core.models import JobConfig, JobStatus
 from dice.core.preflight import PreflightReport, PreflightRunner, PreflightStatus
 from dice.core.registry import JobTypeMetadata, load_builtin_plugins, registry
-from dice.core.secrets import SecretStore
+from dice.core.secrets import SecretStore, WalletSecret
 from dice.core.state import JobRuntimeState
 from dice.core.storage import JobStore
 from dice.core.validation import ensure_valid_job
@@ -95,6 +95,12 @@ class JobManager:
         self._log(job_id, f"Imported private key as {ref}")
         return ref
 
+    def import_wallet(self, wallet_id: str, label: str, address: str | None, private_key: str) -> str:
+        return self.secret_store.store_wallet(wallet_id, label, address, private_key)
+
+    def list_wallets(self) -> list[WalletSecret]:
+        return self.secret_store.list_wallets()
+
     async def delete(self, job_id: str) -> None:
         if job_id not in self.jobs and job_id not in self.states:
             raise KeyError(f"Unknown job: {job_id}")
@@ -106,7 +112,11 @@ class JobManager:
         self._tasks.pop(job_id, None)
         self.logs.pop(job_id, None)
         self.log_store.delete(job_id)
-        if private_key_ref and not self._secret_ref_is_used(private_key_ref):
+        if (
+            private_key_ref
+            and private_key_ref == f"secret://wallets/{job_id}"
+            and not self._secret_ref_is_used(private_key_ref)
+        ):
             self.secret_store.delete(private_key_ref)
 
     def get_logs(self, job_id: str) -> list[str]:

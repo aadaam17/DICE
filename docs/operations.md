@@ -34,6 +34,16 @@ Use the same value in the daemon terminal and any terminal that imports private 
 TUI. DICE stores encrypted private key files in `storage/secrets` and stores only secret references
 inside job JSON.
 
+Wallets can be reused across jobs. Enter a raw private key once when creating a job, then use the
+wallet vault reference shown in Settings for later jobs:
+
+```text
+secret://wallets/base-sweeper
+```
+
+You can paste that `secret://wallets/...` value into the private-key field instead of entering the
+raw private key again.
+
 What this password does:
 
 - It is used to derive the encryption key for private-key storage.

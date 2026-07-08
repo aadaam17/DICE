@@ -148,6 +148,92 @@ After publishing, users can install with:
 python -m pip install dice-chain-executor
 ```
 
+## Automatic GitHub To PyPI Publishing
+
+This repository includes GitHub Actions workflows:
+
+```text
+.github/workflows/ci.yml
+.github/workflows/publish.yml
+```
+
+`ci.yml` runs on normal pushes and pull requests. It installs DICE, runs tests, and verifies that the
+package builds.
+
+`publish.yml` runs when you push a version tag:
+
+```text
+v0.1.0
+v0.1.1
+v0.2.0
+```
+
+It builds the package and publishes to PyPI using PyPI Trusted Publishing. This means GitHub uses
+OIDC to prove the workflow identity to PyPI, so you do not need to store a long-lived PyPI API token
+in GitHub secrets.
+
+### Configure PyPI Trusted Publishing
+
+On PyPI, create or open the `dice-chain-executor` project, then add a GitHub Trusted Publisher.
+
+Use these values:
+
+```text
+Owner: YOUR_GITHUB_USERNAME_OR_ORG
+Repository name: YOUR_REPOSITORY_NAME
+Workflow name: publish.yml
+Environment name: pypi
+```
+
+The environment name matters because the workflow uses:
+
+```yaml
+environment:
+  name: pypi
+```
+
+You can optionally configure the `pypi` environment in GitHub with required reviewers, so publishing
+waits for approval before upload.
+
+### Release From Git
+
+Before publishing a new version, update:
+
+```text
+pyproject.toml
+src/dice/__init__.py
+```
+
+Commit the version change:
+
+```powershell
+git add pyproject.toml src/dice/__init__.py
+git commit -m "Release v0.1.1"
+```
+
+Create and push a matching tag:
+
+```powershell
+git tag v0.1.1
+git push origin main
+git push origin v0.1.1
+```
+
+The publish workflow checks that the tag version matches `pyproject.toml`. For example:
+
+```text
+tag: v0.1.1
+pyproject.toml version: 0.1.1
+```
+
+If they do not match, the workflow stops before publishing.
+
+After the workflow succeeds, users can install the new release:
+
+```powershell
+python -m pip install --upgrade dice-chain-executor
+```
+
 ## Versioning
 
 Before every release, update both:

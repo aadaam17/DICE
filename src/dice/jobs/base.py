@@ -30,6 +30,11 @@ class JobPlugin(ABC):
     def default_workflow(cls) -> WorkflowSpec:
         """Return the default workflow template for this plugin."""
 
+    @classmethod
+    def form_fields(cls) -> list[dict[str, object]]:
+        """Return TUI form hints for this plugin."""
+        return []
+
     def validate(self) -> list[str]:
         if self.config.workflow is None:
             return ["Job requires a workflow"]

@@ -5,7 +5,8 @@ using `mock://local` and real-life examples using live EVM RPCs.
 
 Never paste a real private key into screenshots, chat, docs, issue reports, or logs. In the TUI,
 the private key is accepted once, encrypted into `storage/secrets`, and represented in the job file
-as a `secret://...` reference.
+as a `secret://...` reference. Later jobs can reuse that wallet by pasting the existing
+`secret://wallets/...` reference into the private-key field.
 
 ## Wizard Field Glossary
 
@@ -73,6 +74,12 @@ Destination wallet: 0xWhereFundsShouldGo
 
 For mock testing, you can leave the private key blank. For real EVM execution, import a real private
 key and make sure `DICE_SECRET_PASSWORD` is set before opening the TUI or daemon.
+
+To reuse a saved wallet, paste its vault reference instead of a raw key:
+
+```text
+Private key: secret://wallets/base-sweeper
+```
 
 ### 5. Sweep Type
 

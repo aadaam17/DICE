@@ -51,6 +51,26 @@ class ServiceClient:
         )
         return str(response["private_key_ref"])
 
+    def import_wallet(
+        self,
+        wallet_id: str,
+        label: str,
+        address: str | None,
+        private_key: str,
+    ) -> str:
+        response = self.request(
+            "import_wallet",
+            wallet_id=wallet_id,
+            label=label,
+            address=address,
+            private_key=private_key,
+        )
+        return str(response["private_key_ref"])
+
+    def list_wallets(self) -> list[dict[str, object]]:
+        response = self.request("list_wallets")
+        return list(response.get("wallets", []))
+
     def next_job_id(self) -> str:
         try:
             response = self.request("next_job_id")
@@ -142,6 +162,12 @@ class RemoteJobManager:
 
     def import_private_key(self, job_id: str, label: str, private_key: str) -> str:
         return self.client.import_private_key(job_id, label, private_key)
+
+    def import_wallet(self, wallet_id: str, label: str, address: str | None, private_key: str) -> str:
+        return self.client.import_wallet(wallet_id, label, address, private_key)
+
+    def list_wallets(self) -> list[dict[str, object]]:
+        return self.client.list_wallets()
 
     def next_id(self) -> str:
         return self.client.next_job_id()

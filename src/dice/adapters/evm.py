@@ -79,6 +79,62 @@ class EVMChainAdapter:
         tx["gas"] = int(self._w3.eth.estimate_gas(tx))
         return tx
 
+    async def build_native_transfer(
+        self,
+        job: JobConfig,
+        from_address: str,
+        destination: str,
+        amount_wei: int,
+    ) -> dict[str, Any]:
+        sender = self._w3.to_checksum_address(from_address)
+        tx = {
+            "from": sender,
+            "to": self._w3.to_checksum_address(destination),
+            "value": int(amount_wei),
+            "nonce": self._w3.eth.get_transaction_count(sender),
+            "chainId": self.profile.chain_id,
+        }
+        tx.update(self._gas_price_fields(job))
+        tx["gas"] = int(self._w3.eth.estimate_gas(tx))
+        return tx
+
+    async def build_erc20_transfer(
+        self,
+        job: JobConfig,
+        from_address: str,
+        token_contract: str,
+        destination: str,
+        amount: int,
+    ) -> dict[str, Any]:
+        contract = self._w3.eth.contract(
+            address=self._w3.to_checksum_address(token_contract),
+            abi=[
+                {
+                    "constant": False,
+                    "inputs": [
+                        {"name": "to", "type": "address"},
+                        {"name": "value", "type": "uint256"},
+                    ],
+                    "name": "transfer",
+                    "outputs": [{"name": "", "type": "bool"}],
+                    "type": "function",
+                }
+            ],
+        )
+        sender = self._w3.to_checksum_address(from_address)
+        base_tx = {
+            "from": sender,
+            "nonce": self._w3.eth.get_transaction_count(sender),
+            "chainId": self.profile.chain_id,
+        }
+        base_tx.update(self._gas_price_fields(job))
+        tx = contract.functions.transfer(
+            self._w3.to_checksum_address(destination),
+            int(amount),
+        ).build_transaction(base_tx)
+        tx["gas"] = int(self._w3.eth.estimate_gas(tx))
+        return tx
+
     @property
     def _w3(self) -> Any:
         if self._web3 is None:
