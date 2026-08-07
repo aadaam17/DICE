@@ -23,6 +23,7 @@ class TokenSweepJob(JobPlugin):
                 field("trigger_kind", "Trigger", "trigger", "balance_change"),
                 field("function_name", "Function", "execution", "transfer"),
                 field("arguments", "Amount", "execution", "1000000"),
+                field("min_amount", "Minimum sweep amount", "execution", "1000000"),
             ],
         )
 

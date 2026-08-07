@@ -148,7 +148,8 @@ Choose `Create Job` to walk through:
 7. Unlock method: manual, event, timestamp, block, claimable function, or balance change.
 8. Withdrawal function.
 9. Gas strategy.
-10. Retry policy and summary.
+10. Run behavior: once or continuous, repeat delay, poll interval, and gas replacement.
+11. Review summary and save.
 
 Choose `View Jobs` to work with existing jobs. Select a row and use the action strip above the jobs
 table: `Check`, `Start`, `Stop`, `Edit`, `Duplicate`, `Delete`, or `Refresh`. Use sidebar `Logs` to
@@ -162,6 +163,47 @@ Recommended job start flow:
 4. Choose `Start`.
 
 For copyable values to enter in each wizard field, see [Job Input Examples](job-examples.md).
+
+For sweep and transfer jobs, use the execution screen's minimum amount field to avoid dust
+transactions. For example, if an ERC20 token has 6 decimals, setting `Minimum amount` to `1000000`
+means DICE skips transfers below `1.0` token.
+
+Use the final wizard screen to choose run mode:
+
+```text
+Run mode: once
+```
+
+means the job completes after one successful trigger/execution.
+
+```text
+Run mode: continuous
+Repeat delay seconds: 5
+Poll interval seconds: 1
+```
+
+means the job keeps watching after each execution until you stop it.
+
+`Repeat delay seconds` controls the pause after an execution before continuous watching resumes.
+`Poll interval seconds` controls how often DICE checks the trigger while waiting. For faster
+response, reduce the poll interval, for example:
+
+```text
+Poll interval seconds: 0.25
+```
+
+Very low values can increase RPC usage and may hit rate limits on public RPC endpoints.
+
+## Security Audit
+
+Run a dependency audit before publishing or deploying:
+
+```powershell
+python -m pip_audit
+```
+
+CI runs the same audit automatically. Dependabot is configured to open weekly pull requests for
+Python dependency updates and GitHub Actions updates.
 
 ## Troubleshooting Start And Check
 

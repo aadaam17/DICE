@@ -35,6 +35,9 @@ jobs:
       - name: Run tests
         run: python -m pytest
 
+      - name: Audit dependencies
+        run: python -m pip_audit
+
       - name: Build wheel and source distribution
         run: |
           python -m pip install --upgrade build

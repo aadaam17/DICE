@@ -1,9 +1,12 @@
+import asyncio
+
 from dice.core.manager import JobManager
 from dice.core.models import (
     ExecutionConfig,
     JobConfig,
     JobStatus,
     RpcConfig,
+    RunMode,
     TriggerConfig,
     TriggerKind,
     WalletConfig,
@@ -41,3 +44,29 @@ async def test_unknown_job_start_raises(tmp_path):
         assert "Unknown job" in str(exc)
     else:
         raise AssertionError("Expected KeyError")
+
+
+async def test_continuous_job_keeps_running_until_stopped(tmp_path):
+    manager = JobManager(JobStore(tmp_path))
+    job = JobConfig(
+        id="job-0001",
+        name="Continuous Manual",
+        chain="ethereum",
+        wallet=WalletConfig(name="Wallet", address="0xabc", destination="0xdef"),
+        rpc=RpcConfig(http_url="mock://local"),
+        trigger=TriggerConfig(kind=TriggerKind.MANUAL),
+        execution=ExecutionConfig(function_name="claim"),
+        run_mode=RunMode.CONTINUOUS,
+        repeat_delay_seconds=0,
+    )
+    manager.create_job(job)
+
+    await manager.start(job.id)
+    await asyncio.sleep(0.05)
+
+    assert job.id in manager._tasks
+    assert not manager._tasks[job.id].done()
+
+    await manager.stop(job.id)
+
+    assert manager.states[job.id].status == JobStatus.STOPPED

@@ -167,6 +167,7 @@ No arguments:
 ```text
 Function name: withdraw
 Arguments:
+Minimum amount optional:
 ```
 
 One argument:
@@ -174,6 +175,7 @@ One argument:
 ```text
 Function name: claim
 Arguments: 1
+Minimum amount optional:
 ```
 
 Multiple arguments:
@@ -181,10 +183,32 @@ Multiple arguments:
 ```text
 Function name: withdrawFromPool
 Arguments: 1, 0xRecipientAddress
+Minimum amount optional:
 ```
 
 Arguments are comma-separated. The current TUI stores them as strings, so ABI-sensitive real calls
 should be tested carefully with `Check` before `Start`.
+
+Minimum amount is a dust protection guard. If the amount to transfer or sweep is lower than this
+number, DICE skips the transfer instead of wasting gas.
+
+Example for native ETH-style amounts:
+
+```text
+Arguments: 100000000000000
+Minimum amount optional: 1000000000000000
+```
+
+This means: if the amount is `0.0001 ETH` but your minimum is `0.001 ETH`, skip it.
+
+Example for a 6-decimal ERC20 token such as many USDC deployments:
+
+```text
+Arguments: 100000
+Minimum amount optional: 1000000
+```
+
+This means: if the amount is `0.1 USDC` but your minimum is `1 USDC`, skip it.
 
 ### 9. Gas Strategy
 
@@ -216,9 +240,40 @@ Max fee gwei: 1.5
 
 ```text
 Replacement percent: 15
+Run mode: once
+Repeat delay seconds: 5
+Poll interval seconds: 1
 ```
 
 This is the percentage DICE can use later when replacing or speeding up transactions.
+
+Run mode controls whether a job stops after one execution or keeps watching:
+
+```text
+Run mode: once
+```
+
+Use this for one-off jobs such as a manual claim.
+
+```text
+Run mode: continuous
+Repeat delay seconds: 5
+Poll interval seconds: 1
+```
+
+Use this for active jobs such as wallet watch, balance trigger, event trigger, or any job that should
+keep watching and repeat the task when the trigger happens again.
+
+`Repeat delay seconds` is the pause after the task runs. It does not control how fast DICE notices a
+trigger. `Poll interval seconds` controls trigger responsiveness. Use a lower poll interval for
+faster watching:
+
+```text
+Poll interval seconds: 0.25
+```
+
+This checks about four times per second. Be careful with public RPCs because very low values can
+increase rate-limit pressure.
 
 ## Test Examples
 
@@ -317,6 +372,7 @@ Parameter 1: 0x0000000000000000000000000000000000000000
 Parameter 2:
 Function name: transfer
 Arguments: 0x0000000000000000000000000000000000000000, 1000000
+Minimum amount optional: 1000000
 Gas mode: standard
 Priority fee gwei:
 Max fee gwei:
@@ -373,6 +429,7 @@ Parameter 1: 1767225600
 Parameter 2:
 Function name: transfer
 Arguments: 0x0000000000000000000000000000000000000000, 1000000000000000
+Minimum amount optional: 1000000000000000
 Gas mode: standard
 Priority fee gwei:
 Max fee gwei:
@@ -454,6 +511,7 @@ Parameter 1:
 Parameter 2:
 Function name: withdraw
 Arguments: 1000000000000000000
+Minimum amount optional: 1000000000000000
 Gas mode: aggressive
 Priority fee gwei:
 Max fee gwei:
@@ -483,6 +541,7 @@ Parameter 1: 0xYourPolygonHotWallet
 Parameter 2:
 Function name: transfer
 Arguments: 0xYourColdStorageWallet, 1000000
+Minimum amount optional: 1000000
 Gas mode: standard
 Priority fee gwei:
 Max fee gwei:

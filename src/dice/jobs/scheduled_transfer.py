@@ -22,6 +22,7 @@ class ScheduledTransferJob(JobPlugin):
                 field("destination", "Recipient", "wallet", "0xRecipient", True),
                 field("asset_kind", "Asset", "asset", "native or erc20"),
                 field("arguments", "Amount", "execution", "1000000000000000", True),
+                field("min_amount", "Minimum amount", "execution", "1000000000000000"),
             ],
         )
 

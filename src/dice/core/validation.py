@@ -42,6 +42,8 @@ def validate_job(job: JobConfig) -> ValidationResult:
         warnings.append("Destination address does not look like a normal EVM address")
     if not job.execution.function_name.strip():
         errors.append("Execution function is required")
+    if job.execution.min_amount is not None and job.execution.min_amount < 0:
+        errors.append("Minimum amount cannot be negative")
 
     if job.execution.asset_kind == SweepAssetKind.ERC20:
         if not job.execution.token_contract:
@@ -67,6 +69,10 @@ def validate_job(job: JobConfig) -> ValidationResult:
         errors.append("Priority fee cannot be negative")
     if job.gas.max_fee_gwei is not None and job.gas.max_fee_gwei < 0:
         errors.append("Max fee cannot be negative")
+    if job.repeat_delay_seconds < 0:
+        errors.append("Repeat delay cannot be negative")
+    if job.poll_interval_seconds < 0:
+        errors.append("Poll interval cannot be negative")
 
     return ValidationResult(errors=errors, warnings=warnings)
 

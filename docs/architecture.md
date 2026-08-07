@@ -21,6 +21,16 @@ Actions
 Jobs are independent workflow containers. "Stake Sweep", "Token Sweep", and "Contract Call" are
 job plugins/templates, not special cases in the job manager.
 
+Each job has a run mode:
+
+- `once`: wait for the trigger, execute actions one time, then complete.
+- `continuous`: wait for the trigger, execute actions, pause for `repeat_delay_seconds`, then watch
+  again until the operator stops the job.
+
+Trigger responsiveness is controlled separately by `poll_interval_seconds`. Smaller values check
+the trigger more often. `repeat_delay_seconds` only applies after a continuous job has already
+executed once.
+
 DICE is split into two runtime modes:
 
 - **Interactive mode**: the Textual TUI a user opens over SSH to view status, create jobs,
@@ -154,6 +164,14 @@ Real EVM contract calls use ABI-backed transaction building. Native and ERC20 tr
 transaction builders. Mock execution uses the same action dispatcher but broadcasts deterministic
 mock transactions.
 
+Transfer and sweep actions can use `execution.min_amount` as a dust guard. If the amount resolved
+for the action is lower than the configured minimum, DICE marks the action as skipped and does not
+broadcast a transaction.
+
+Watch-style jobs such as `wallet_watch`, `balance_trigger`, and `event_trigger` can be set to
+continuous mode when ongoing monitoring is desired. The default remains `once` so repeat behavior is
+always explicit.
+
 ## Chain Adapters
 
 DICE chooses the chain adapter from the job RPC configuration:
@@ -274,3 +292,5 @@ file is not useful by itself, but the password becomes critical recovery materia
 - Control access should remain local by default.
 - Private keys are referenced through encrypted local secret files, not stored directly in job JSON.
 - Logs must redact credentials, RPC secrets, signed transactions, and raw private keys.
+- CI runs dependency vulnerability auditing with `pip-audit`.
+- Dependabot checks Python dependencies and GitHub Actions weekly.

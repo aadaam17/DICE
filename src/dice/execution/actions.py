@@ -17,6 +17,7 @@ class ActionResult:
     action: WorkflowActionKind
     message: str
     tx_hash: str | None = None
+    skipped: bool = False
 
 
 @dataclass(slots=True)
@@ -72,6 +73,12 @@ class ContractCallAction:
 class NativeTransferAction:
     async def execute(self, job: JobConfig, action: ActionSpec, context: ActionContext) -> ActionResult:
         amount = _amount_from_action_or_job(action, job)
+        if _below_minimum(job, amount):
+            return ActionResult(
+                action.kind,
+                f"Skipped native transfer because amount {amount} is below minimum {job.execution.min_amount}",
+                skipped=True,
+            )
         destination = str(action.params.get("destination") or job.wallet.destination)
         builder = getattr(context.adapter, "build_native_transfer", None)
         if callable(builder):
@@ -87,6 +94,12 @@ class Erc20TransferAction:
         if not token:
             raise RuntimeError("transfer_erc20 requires token_contract")
         amount = _amount_from_action_or_job(action, job)
+        if _below_minimum(job, amount):
+            return ActionResult(
+                action.kind,
+                f"Skipped ERC20 transfer because amount {amount} is below minimum {job.execution.min_amount}",
+                skipped=True,
+            )
         destination = str(action.params.get("destination") or job.wallet.destination)
         builder = getattr(context.adapter, "build_erc20_transfer", None)
         if callable(builder):
@@ -175,3 +188,7 @@ def _amount_from_action_or_job(action: ActionSpec, job: JobConfig) -> int:
     if value in (None, ""):
         raise RuntimeError(f"{action.kind.value} requires an amount argument")
     return int(value)
+
+
+def _below_minimum(job: JobConfig, amount: int) -> bool:
+    return job.execution.min_amount is not None and amount < job.execution.min_amount

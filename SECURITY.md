@@ -24,6 +24,17 @@ public GitHub organization, replace this section with the official private secur
 - `storage/secrets/*.json` must not be committed.
 - `DICE_SECRET_PASSWORD` must not be committed or printed in logs.
 
+## Dependency Security
+
+DICE uses `pip-audit` in CI to check installed Python dependencies for known vulnerabilities.
+Dependabot is configured to open weekly update pull requests for Python packages and GitHub Actions.
+
+Before publishing or deploying a release, run:
+
+```powershell
+python -m pip_audit
+```
+
 ## Supported Versions
 
 This project is pre-1.0. Security fixes target the latest main branch until release branches exist.

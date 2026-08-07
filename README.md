@@ -20,6 +20,9 @@ This first build provides:
 - Preflight checks before jobs start
 - Non-broadcast transaction simulation with gas and max-cost estimates
 - Workflow action handlers for contract calls, transfers, waits, notifications, withdrawals, and sweeps
+- Minimum amount thresholds so tiny sweeps/transfers can be skipped before wasting gas
+- One-shot and continuous run modes for active watch jobs
+- Dependency security auditing in CI
 - Watcher, trigger, builder, broadcaster, and executor boundaries
 - A Textual dashboard for viewing and starting/stopping jobs
 - A `mock://` execution path suitable for local development
@@ -194,7 +197,8 @@ Exit
 7. Choose unlock method: manual, event, timestamp, block, claimable function, or balance change.
 8. Enter withdrawal function and arguments.
 9. Choose gas strategy: standard, aggressive, ultra, or custom.
-10. Review retry policy and summary, then save the job.
+10. Choose run behavior: once or continuous, repeat delay, poll interval, and gas replacement.
+11. Review the summary, then save the job.
 
 The sidebar contains:
 
@@ -226,6 +230,17 @@ long-running job state.
 ```powershell
 python -m pytest
 ```
+
+## Security Audit
+
+Run the dependency vulnerability audit locally with:
+
+```powershell
+python -m pip_audit
+```
+
+The GitHub CI workflow also runs this audit on pushes and pull requests. Dependabot is configured
+to open weekly dependency and GitHub Actions update PRs.
 
 ## Project Layout
 

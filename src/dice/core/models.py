@@ -43,6 +43,11 @@ class GasMode(StrEnum):
     CUSTOM = "custom"
 
 
+class RunMode(StrEnum):
+    ONCE = "once"
+    CONTINUOUS = "continuous"
+
+
 @dataclass(slots=True)
 class WalletConfig:
     name: str
@@ -76,6 +81,7 @@ class ExecutionConfig:
     asset_kind: SweepAssetKind = SweepAssetKind.NATIVE
     token_contract: str | None = None
     token_symbol: str | None = None
+    min_amount: int | None = None
 
 
 @dataclass(slots=True)
@@ -101,6 +107,9 @@ class JobConfig:
     contract: ContractConfig | None = None
     enabled: bool = True
     status: JobStatus = JobStatus.CREATED
+    run_mode: RunMode = RunMode.ONCE
+    repeat_delay_seconds: int = 5
+    poll_interval_seconds: float = 1.0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -124,6 +133,7 @@ class JobConfig:
                 asset_kind=SweepAssetKind(data["execution"].get("asset_kind", SweepAssetKind.NATIVE)),
                 token_contract=data["execution"].get("token_contract"),
                 token_symbol=data["execution"].get("token_symbol"),
+                min_amount=data["execution"].get("min_amount"),
             ),
             job_type=data.get("job_type", "contract_call"),
             workflow=WorkflowSpec.from_dict(data["workflow"]) if data.get("workflow") else None,
@@ -135,4 +145,7 @@ class JobConfig:
             ),
             enabled=data.get("enabled", True),
             status=JobStatus(data.get("status", JobStatus.CREATED)),
+            run_mode=RunMode(data.get("run_mode", RunMode.ONCE)),
+            repeat_delay_seconds=data.get("repeat_delay_seconds", 5),
+            poll_interval_seconds=data.get("poll_interval_seconds", 1.0),
         )

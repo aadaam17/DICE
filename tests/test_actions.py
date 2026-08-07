@@ -69,3 +69,44 @@ async def test_notify_action_does_not_broadcast():
 
     assert results[0].tx_hash is None
     assert results[0].message == "hello"
+
+
+async def test_transfer_skips_when_amount_below_minimum():
+    adapter = MockChainAdapter(get_profile("ethereum"))
+    context = ActionContext(
+        adapter=adapter,
+        builder=TransactionBuilder(),
+        broadcaster=Broadcaster(adapter),
+    )
+    job = _job()
+    job.execution.min_amount = 2_000
+
+    results = await WorkflowActionDispatcher().execute(
+        job,
+        [ActionSpec(kind=WorkflowActionKind.TRANSFER_NATIVE)],
+        context,
+    )
+
+    assert results[0].skipped is True
+    assert results[0].tx_hash is None
+    assert "below minimum" in results[0].message
+
+
+async def test_transfer_broadcasts_when_amount_meets_minimum():
+    adapter = MockChainAdapter(get_profile("ethereum"))
+    context = ActionContext(
+        adapter=adapter,
+        builder=TransactionBuilder(),
+        broadcaster=Broadcaster(adapter),
+    )
+    job = _job()
+    job.execution.min_amount = 1_000
+
+    results = await WorkflowActionDispatcher().execute(
+        job,
+        [ActionSpec(kind=WorkflowActionKind.TRANSFER_NATIVE)],
+        context,
+    )
+
+    assert results[0].skipped is False
+    assert results[0].tx_hash is not None

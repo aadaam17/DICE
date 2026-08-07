@@ -26,6 +26,7 @@ class StakeSweepJob(JobPlugin):
                 field("abi_path", "ABI path", "contract", "C:\\path\\to\\staking-abi.json"),
                 field("trigger_kind", "Unlock trigger", "trigger", "claimable_function"),
                 field("function_name", "Withdraw function", "execution", "withdraw"),
+                field("min_amount", "Minimum sweep amount", "execution", "1000000000000000"),
                 field("asset_kind", "Sweep asset", "asset", "native or erc20"),
                 field("destination", "Destination", "wallet", "0xColdWallet", True),
             ],

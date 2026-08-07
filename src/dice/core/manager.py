@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 from dice.adapters.factory import create_adapter
 from dice.core.logging import JobLogStore
-from dice.core.models import JobConfig, JobStatus
+from dice.core.models import JobConfig, JobStatus, RunMode
 from dice.core.preflight import PreflightReport, PreflightRunner, PreflightStatus
 from dice.core.registry import JobTypeMetadata, load_builtin_plugins, registry
 from dice.core.secrets import SecretStore, WalletSecret
@@ -167,19 +167,27 @@ class JobManager:
 
     async def _run_job(self, job: JobConfig) -> None:
         adapter = create_adapter(job)
-        watcher = Watcher(TriggerEvaluator(adapter))
+        watcher = Watcher(TriggerEvaluator(adapter), poll_interval=job.poll_interval_seconds)
         executor = ExecutionEngine(adapter, self.secret_store)
         try:
             await adapter.connect()
-            async for event in watcher.wait_until_triggered(job):
-                if event == "waiting":
-                    self._transition(job.id, JobStatus.WAITING, "Watching")
-                if event == "triggered":
-                    self._transition(job.id, JobStatus.TRIGGERED, "Trigger detected")
-            self._transition(job.id, JobStatus.BROADCASTING, "Broadcasting")
-            tx_hash = await executor.execute(job)
-            self._transition(job.id, JobStatus.CONFIRMED, "Confirmed", tx_hash=tx_hash)
-            self._transition(job.id, JobStatus.COMPLETED, "Completed", tx_hash=tx_hash)
+            while True:
+                async for event in watcher.wait_until_triggered(job):
+                    if event == "waiting":
+                        self._transition(job.id, JobStatus.WAITING, "Watching")
+                    if event == "triggered":
+                        self._transition(job.id, JobStatus.TRIGGERED, "Trigger detected")
+                self._transition(job.id, JobStatus.BROADCASTING, "Broadcasting")
+                tx_hash = await executor.execute(job)
+                if tx_hash == "no-transaction":
+                    self._transition(job.id, JobStatus.COMPLETED, "Completed without broadcasting")
+                else:
+                    self._transition(job.id, JobStatus.CONFIRMED, "Confirmed", tx_hash=tx_hash)
+                    self._transition(job.id, JobStatus.COMPLETED, "Completed", tx_hash=tx_hash)
+                if job.run_mode == RunMode.ONCE:
+                    return
+                self._transition(job.id, JobStatus.WAITING, f"Watching again in {job.repeat_delay_seconds}s")
+                await asyncio.sleep(job.repeat_delay_seconds)
         except asyncio.CancelledError:
             raise
         except Exception as exc:

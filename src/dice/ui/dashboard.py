@@ -15,6 +15,7 @@ from dice.core.models import (
     JobConfig,
     JobStatus,
     RpcConfig,
+    RunMode,
     SweepAssetKind,
     TriggerConfig,
     TriggerKind,
@@ -89,7 +90,7 @@ class Dashboard(Container):
     #workflow {
         width: 1fr;
         padding: 0 1;
-        border-left: solid $primary;
+        border-left: none;
     }
 
     #workflow_title {
@@ -98,12 +99,24 @@ class Dashboard(Container):
     }
 
     #workflow_body {
-        height: 10;
+        height: auto;
         color: $text-muted;
+        border-bottom: none;
     }
 
     #field_1, #field_2, #field_3, #field_4 {
         margin-bottom: 1;
+    }
+
+    #workflow_actions {
+        height: 3;
+        border-top: none;
+        padding-top: 1;
+    }
+
+    #workflow_actions Button {
+        min-width: 8;
+        margin-right: 1;
     }
 
     #details {
@@ -328,7 +341,7 @@ class Dashboard(Container):
         if self.view not in {"create", "edit"}:
             return
         self._capture_wizard_step()
-        self.wizard_step = min(self.wizard_step + 1, 9)
+        self.wizard_step = min(self.wizard_step + 1, 10)
         self._render_wizard()
 
     def _wizard_back(self) -> None:
@@ -350,26 +363,29 @@ class Dashboard(Container):
             field.display = bool(placeholder)
             field.password = self.wizard_step == 3 and input_id == "#field_2"
         self._set_wizard_controls(True)
-        self._set_details("Continue through each screen, then review the summary and choose Save Job.")
+        if self.wizard_step == 10:
+            self._set_details("Review the job summary, then choose Save Job.")
+        else:
+            self._set_details("Fill the visible fields, then choose Continue.")
 
     def _wizard_step_content(self) -> tuple[str, str, list[str]]:
-        chain_list = "\n".join(f"- {profile.name} ({key})" for key, profile in PROFILES.items())
+        chain_list = ", ".join(f"{profile.name} ({key})" for key, profile in PROFILES.items())
         job_type_list = self._job_type_option_text()
         job_type = self._selected_job_type()
         steps = [
             (
                 "Select Job Type",
-                f"Choose a workflow plugin by key.\n\n{job_type_list}",
+                f"Choose a workflow plugin key.\n{job_type_list}",
                 ["Job type key, e.g. contract_call", "", ""],
             ),
             (
                 "Select Blockchain",
-                f"Choose a supported EVM chain by key.\n\n{chain_list}",
+                f"Choose a supported EVM chain by key.\n{chain_list}",
                 ["Chain key, e.g. ethereum", "", ""],
             ),
             (
                 "RPC Endpoint",
-                "Use mock://local for dry-run testing. Use HTTP/WebSocket RPC endpoints for real EVM execution.",
+                "Use mock://local for testing, or a real HTTP RPC for live execution.",
                 ["HTTP RPC", "WebSocket RPC optional", ""],
             ),
             (
@@ -389,13 +405,13 @@ class Dashboard(Container):
             ),
             (
                 "Unlock Method",
-                "manual, event, timestamp, block, claimable_function, or balance_change.",
+                "Choose when this job should execute.",
                 ["Unlock method, e.g. manual", "Parameter 1", "Parameter 2"],
             ),
             (
                 "Withdrawal Function",
-                "Define the execution function and comma-separated arguments.",
-                ["Function name, e.g. withdraw", "Arguments, e.g. poolId", ""],
+                "Define the execution function, arguments, and optional minimum amount threshold.",
+                ["Function name, e.g. withdraw", "Arguments, e.g. poolId", "Minimum amount optional"],
             ),
             (
                 "Gas Strategy",
@@ -403,9 +419,25 @@ class Dashboard(Container):
                 ["Gas mode", "Priority fee gwei", "Max fee gwei"],
             ),
             (
-                "Retry Policy And Summary",
+                "Run Behavior",
+                "\n".join(
+                    [
+                        "once: run after the trigger fires, then stop.",
+                        "continuous: keep watching until you stop it.",
+                        "Poll interval controls trigger check speed while waiting.",
+                    ]
+                ),
+                [
+                    "Run mode: once or continuous",
+                    "Repeat delay seconds",
+                    "Poll interval seconds",
+                    "Replacement percent",
+                ],
+            ),
+            (
+                "Review Summary",
                 self._summary_text(),
-                ["Replacement percent", "", ""],
+                ["", "", "", ""],
             ),
         ]
         title, body, placeholders = steps[self.wizard_step]
@@ -419,9 +451,7 @@ class Dashboard(Container):
         if step_name:
             hints = self._schema_fields_for_step(job_type, step_name)
             if hints:
-                body = body + "\n\nFor this job type:\n" + "\n".join(
-                    f"- {item['label']}: {item['placeholder']}" for item in hints
-                )
+                body = body + "\n" + self._inline_field_hints(hints)
                 placeholders = self._dynamic_placeholders(step_name, placeholders, hints)
         return title, body, placeholders
 
@@ -454,14 +484,20 @@ class Dashboard(Container):
             7: [
                 self.wizard_data.get("function_name", self._job_type_default("function_name", "withdraw")),
                 self.wizard_data.get("function_arguments", ""),
-                "",
+                self.wizard_data.get("min_amount", ""),
             ],
             8: [
                 self.wizard_data.get("gas_mode", "standard"),
                 self.wizard_data.get("priority_fee_gwei", ""),
                 self.wizard_data.get("max_fee_gwei", ""),
             ],
-            9: [self.wizard_data.get("replacement_percent", "15"), "", ""],
+            9: [
+                self.wizard_data.get("run_mode", self._job_type_default("run_mode", "once")),
+                self.wizard_data.get("repeat_delay_seconds", "5"),
+                self.wizard_data.get("poll_interval_seconds", "1"),
+                self.wizard_data.get("replacement_percent", "15"),
+            ],
+            10: ["", "", "", ""],
         }
         return values[self.wizard_step]
 
@@ -493,12 +529,16 @@ class Dashboard(Container):
         elif self.wizard_step == 7:
             self.wizard_data["function_name"] = values[0] or self._job_type_default("function_name", "withdraw")
             self.wizard_data["function_arguments"] = values[1]
+            self.wizard_data["min_amount"] = values[2]
         elif self.wizard_step == 8:
             self.wizard_data["gas_mode"] = values[0] or "standard"
             self.wizard_data["priority_fee_gwei"] = values[1]
             self.wizard_data["max_fee_gwei"] = values[2]
         elif self.wizard_step == 9:
-            self.wizard_data["replacement_percent"] = values[0] or "15"
+            self.wizard_data["run_mode"] = values[0] or self._job_type_default("run_mode", "once")
+            self.wizard_data["repeat_delay_seconds"] = values[1] or "5"
+            self.wizard_data["poll_interval_seconds"] = values[2] or "1"
+            self.wizard_data["replacement_percent"] = values[3] or "15"
 
     def _save_wizard_job(self) -> None:
         if self.view not in {"create", "edit"}:
@@ -570,6 +610,7 @@ class Dashboard(Container):
                 asset_kind=asset_kind,
                 token_contract=self.wizard_data.get("token_contract") or None,
                 token_symbol=self.wizard_data.get("token_symbol") or None,
+                min_amount=self._int_or_none(self.wizard_data.get("min_amount", "")),
             ),
             job_type=self.wizard_data.get("job_type", "contract_call"),
             gas=GasConfig(
@@ -579,6 +620,13 @@ class Dashboard(Container):
                 replacement_percent=self._int_or_default(
                     self.wizard_data.get("replacement_percent", "15"), 15
                 ),
+            ),
+            run_mode=self._run_mode(self.wizard_data.get("run_mode", self._job_type_default("run_mode", "once"))),
+            repeat_delay_seconds=self._int_or_default(
+                self.wizard_data.get("repeat_delay_seconds", "5"), 5
+            ),
+            poll_interval_seconds=self._float_or_default(
+                self.wizard_data.get("poll_interval_seconds", "1"), 1.0
             ),
         )
 
@@ -603,10 +651,14 @@ class Dashboard(Container):
             "trigger_param_2": self._second_trigger_param(job.trigger.params),
             "function_name": job.execution.function_name,
             "function_arguments": ", ".join(str(item) for item in job.execution.arguments),
+            "min_amount": "" if job.execution.min_amount is None else str(job.execution.min_amount),
             "gas_mode": job.gas.mode.value,
             "priority_fee_gwei": "" if job.gas.priority_fee_gwei is None else str(job.gas.priority_fee_gwei),
             "max_fee_gwei": "" if job.gas.max_fee_gwei is None else str(job.gas.max_fee_gwei),
             "replacement_percent": str(job.gas.replacement_percent),
+            "run_mode": job.run_mode.value,
+            "repeat_delay_seconds": str(job.repeat_delay_seconds),
+            "poll_interval_seconds": str(job.poll_interval_seconds),
         }
 
     def _duplicate_job(self, job_id: str) -> None:
@@ -677,8 +729,11 @@ class Dashboard(Container):
             field.password = False
 
     def _set_wizard_controls(self, visible: bool) -> None:
-        for button_id in ["#back", "#continue", "#save", "#cancel"]:
-            self.query_one(button_id, Button).display = visible
+        final_step = self.wizard_step == 10
+        self.query_one("#back", Button).display = visible
+        self.query_one("#continue", Button).display = visible and not final_step
+        self.query_one("#save", Button).display = visible and final_step
+        self.query_one("#cancel", Button).display = visible
 
     def _field_ids(self) -> list[str]:
         return ["#field_1", "#field_2", "#field_3", "#field_4"]
@@ -692,7 +747,10 @@ class Dashboard(Container):
                 f"Destination: {self.wizard_data.get('destination', ZERO_ADDRESS)}",
                 f"Unlock: {self.wizard_data.get('trigger_kind', self._job_type_default('trigger_kind', 'manual'))}",
                 f"Action: {self.wizard_data.get('function_name', self._job_type_default('function_name', 'withdraw'))}()",
+                f"Minimum amount: {self.wizard_data.get('min_amount', '') or 'none'}",
                 f"Gas: {self.wizard_data.get('gas_mode', 'standard')}",
+                f"Run mode: {self.wizard_data.get('run_mode', self._job_type_default('run_mode', 'once'))}",
+                f"Poll interval: {self.wizard_data.get('poll_interval_seconds', '1')}s",
             ]
         )
 
@@ -732,6 +790,12 @@ class Dashboard(Container):
         except ValueError:
             return GasMode.STANDARD
 
+    def _run_mode(self, value: str) -> RunMode:
+        try:
+            return RunMode(value.lower())
+        except ValueError:
+            return RunMode.ONCE
+
     def _split_arguments(self, value: str) -> list[str]:
         return [item.strip() for item in value.split(",") if item.strip()]
 
@@ -741,11 +805,23 @@ class Dashboard(Container):
         except ValueError:
             return None
 
+    def _float_or_default(self, value: str, default: float) -> float:
+        try:
+            return float(value) if value else default
+        except ValueError:
+            return default
+
     def _int_or_default(self, value: str, default: int) -> int:
         try:
             return int(value) if value else default
         except ValueError:
             return default
+
+    def _int_or_none(self, value: str) -> int | None:
+        try:
+            return int(value) if value else None
+        except ValueError:
+            return None
 
     def _wallet_id(self, value: str) -> str:
         normalized = value.strip().lower().replace(" ", "-")
@@ -846,7 +922,7 @@ class Dashboard(Container):
             "asset": ["asset_kind", "token_contract", "token_symbol"],
             "contract": ["contract_address", "abi_path", ""],
             "trigger": ["trigger_kind", "trigger_param_1", "trigger_param_2"],
-            "execution": ["function_name", "arguments", ""],
+            "execution": ["function_name", "arguments", "min_amount"],
         }
         keys = keys_by_step.get(step, [])
         updated = list(placeholders)
@@ -854,6 +930,12 @@ class Dashboard(Container):
             if index < len(updated) and key in by_key:
                 updated[index] = by_key[key]
         return updated
+
+    def _inline_field_hints(self, hints: list[dict[str, str]]) -> str:
+        labels = [item["label"] for item in hints if item.get("label")]
+        if not labels:
+            return ""
+        return "Fields: " + ", ".join(labels)
 
     def _job_type_items(self) -> list[object]:
         provider = getattr(self.manager, "available_job_types", None)
@@ -895,7 +977,7 @@ class Dashboard(Container):
         rows: list[str] = []
         for item in self._job_type_items():
             if hasattr(item, "key") and hasattr(item, "name"):
-                rows.append(f"- {item.key} ({item.name})")
+                rows.append(f"{item.key} ({item.name})")
             elif isinstance(item, dict):
-                rows.append(f"- {item.get('key')} ({item.get('name')})")
-        return "\n".join(rows) if rows else "- contract_call (Contract Call)"
+                rows.append(f"{item.get('key')} ({item.get('name')})")
+        return ", ".join(rows) if rows else "contract_call (Contract Call)"
