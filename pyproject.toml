@@ -1,6 +1,6 @@
 [project]
 name = "dice-chain-executor"
-version = "0.1.0"
+version = "0.1.1"
 description = "Deterministic Intelligent Chain Executor, a Python TUI for EVM job orchestration."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -34,14 +34,15 @@ classifiers = [
 ]
 dependencies = [
     "textual>=0.80.0",
-    "cryptography>=42.0.0",
-    "web3>=6.0.0",
+    "cryptography>=46.0.7",
+    "web3>=7.15.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    "pip-audit>=2.9.0",
 ]
 publish = [
     "build>=1.2.0",
