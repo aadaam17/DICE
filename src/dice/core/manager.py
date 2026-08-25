@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from time import perf_counter
 
 from dice.adapters.factory import create_adapter
 from dice.core.logging import JobLogStore
@@ -139,7 +140,9 @@ class JobManager:
             self._log(job_id, "Start requested but job is already running")
             return
         job = self.jobs[job_id]
+        preflight_start = perf_counter()
         report = await self.preflight(job_id)
+        self._log(job_id, f"timing: preflight finished in {_elapsed(preflight_start)}")
         if not report.ok:
             failures = [
                 check.message for check in report.checks if check.status == PreflightStatus.FAIL
@@ -172,18 +175,31 @@ class JobManager:
         try:
             await adapter.connect()
             while True:
+                cycle_start = perf_counter()
+                watch_start = perf_counter()
                 async for event in watcher.wait_until_triggered(job):
                     if event == "waiting":
                         self._transition(job.id, JobStatus.WAITING, "Watching")
                     if event == "triggered":
-                        self._transition(job.id, JobStatus.TRIGGERED, "Trigger detected")
+                        self._transition(
+                            job.id,
+                            JobStatus.TRIGGERED,
+                            f"Trigger detected after {_elapsed(watch_start)}",
+                        )
                 self._transition(job.id, JobStatus.BROADCASTING, "Broadcasting")
-                tx_hash = await executor.execute(job)
+                execution_start = perf_counter()
+
+                def mark(message: str) -> None:
+                    self._log(job.id, f"timing: +{_elapsed(execution_start)} {message}")
+
+                tx_hash = await executor.execute(job, mark=mark)
+                self._log(job.id, f"timing: execution finished in {_elapsed(execution_start)}")
                 if tx_hash == "no-transaction":
                     self._transition(job.id, JobStatus.COMPLETED, "Completed without broadcasting")
                 else:
                     self._transition(job.id, JobStatus.CONFIRMED, "Confirmed", tx_hash=tx_hash)
                     self._transition(job.id, JobStatus.COMPLETED, "Completed", tx_hash=tx_hash)
+                self._log(job.id, f"timing: full run cycle finished in {_elapsed(cycle_start)}")
                 if job.run_mode == RunMode.ONCE:
                     return
                 self._transition(job.id, JobStatus.WAITING, f"Watching again in {job.repeat_delay_seconds}s")
@@ -218,3 +234,7 @@ class JobManager:
 
     def _secret_ref_is_used(self, private_key_ref: str) -> bool:
         return any(job.wallet.private_key_ref == private_key_ref for job in self.jobs.values())
+
+
+def _elapsed(start: float) -> str:
+    return f"{perf_counter() - start:.3f}s"

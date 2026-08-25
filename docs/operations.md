@@ -90,6 +90,28 @@ Use a real HTTP RPC endpoint for real EVM execution. Real execution requires the
 imported, the daemon to have `DICE_SECRET_PASSWORD`, and the job to include a contract address plus
 ABI path.
 
+For Solana native SOL jobs, use:
+
+```text
+Chain: solana
+HTTP RPC: https://api.mainnet-beta.solana.com
+native or erc20/token: native
+```
+
+Solana private keys must be imported as either a base58 keypair string or a JSON byte array. DICE
+also supports SPL token sweeping. For SPL tokens, use:
+
+```text
+native or erc20/token: erc20
+Token contract or mint: SPL_TOKEN_MINT_ADDRESS
+Token symbol: USDC
+Token decimals optional: 6
+```
+
+DICE derives associated token accounts for the source and destination wallets. If the destination
+associated token account does not exist, DICE adds an idempotent create instruction before the token
+transfer.
+
 Before real execution, run `Check` in the TUI. DICE verifies the job configuration, plugin rules,
 RPC connectivity, signer key, contract bytecode, ABI function, and transaction simulation where
 applicable. The simulation builds the transaction and estimates gas without signing or broadcasting.
@@ -165,8 +187,21 @@ Recommended job start flow:
 For copyable values to enter in each wizard field, see [Job Input Examples](job-examples.md).
 
 For sweep and transfer jobs, use the execution screen's minimum amount field to avoid dust
-transactions. For example, if an ERC20 token has 6 decimals, setting `Minimum amount` to `1000000`
-means DICE skips transfers below `1.0` token.
+transactions. Enter normal decimal amounts, not wei or raw token units. For example, setting
+`Minimum amount` to `1` for USDC means DICE skips transfers below `1.0` USDC. Setting it to `0.001`
+for Base ETH means DICE skips transfers below `0.001` ETH.
+
+For ERC20 jobs, fill `Token decimals` if you know it. Common examples are `6` for USDC/USDT, `18`
+for DAI/LINK/WETH, and `8` for WBTC. If left blank, DICE uses known defaults where possible and
+asks the token contract for decimals during real execution.
+
+For `balance_trigger`, DICE watches the address in `Parameter 1`. When that address reaches the
+minimum amount, the default action is now `sweep`. If you leave `Arguments` empty, DICE calculates
+the amount from the live wallet balance. For native coins, it subtracts estimated gas first so it
+does not try to spend the full balance and fail.
+
+For sweep or transfer jobs, `Parameter 1` must be the same address as `Wallet address`, because
+DICE can only move funds from wallets whose private key you imported.
 
 Use the final wizard screen to choose run mode:
 
@@ -193,6 +228,27 @@ Poll interval seconds: 0.25
 ```
 
 Very low values can increase RPC usage and may hit rate limits on public RPC endpoints.
+
+## Sweep Timing Logs
+
+Every started job writes timing lines to its job log. These lines show where time is spent:
+
+```text
+timing: preflight finished in 0.812s
+triggered: Trigger detected after 1.004s
+timing: +0.214s fast native sweep amount resolved
+timing: +0.318s transaction signed
+timing: +0.642s transaction broadcast accepted
+timing: execution finished in 0.642s
+timing: full run cycle finished in 1.646s
+```
+
+Use these timings to tell whether delay came from polling, RPC balance updates, gas estimation,
+signing, broadcasting, or chain inclusion.
+
+Native balance sweeps also use a faster build path during real EVM execution. DICE calculates the
+transferable balance and builds the transaction in one adapter step, reducing duplicate RPC work
+before broadcast.
 
 ## Security Audit
 

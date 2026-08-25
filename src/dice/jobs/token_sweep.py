@@ -13,17 +13,18 @@ class TokenSweepJob(JobPlugin):
         return metadata(
             "token_sweep",
             "Token Sweep",
-            "Transfer ERC20 tokens when a watched wallet receives them.",
+            "Transfer EVM ERC20 or Solana SPL tokens when a watched wallet receives them.",
             [WorkflowTriggerKind.WALLET_CHANGE],
             [WorkflowActionKind.TRANSFER_ERC20],
             [
-                field("token_contract", "Token contract", "asset", "0xTokenContract", True),
+                field("token_contract", "Token contract or mint", "asset", "0xTokenContractOrSolanaMint", True),
                 field("token_symbol", "Token symbol", "asset", "USDC"),
+                field("token_decimals", "Token decimals", "asset", "6"),
                 field("destination", "Destination", "wallet", "0xColdWallet", True),
                 field("trigger_kind", "Trigger", "trigger", "balance_change"),
                 field("function_name", "Function", "execution", "transfer"),
-                field("arguments", "Amount", "execution", "1000000"),
-                field("min_amount", "Minimum sweep amount", "execution", "1000000"),
+                field("arguments", "Amount", "execution", "1"),
+                field("min_amount", "Minimum sweep amount", "execution", "1"),
             ],
         )
 

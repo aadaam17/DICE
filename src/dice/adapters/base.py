@@ -24,10 +24,13 @@ class ChainAdapter(Protocol):
     async def latest_block(self) -> int:
         """Return latest observed block number."""
 
+    async def get_native_balance(self, address: str) -> int:
+        """Return native asset balance in the smallest unit."""
+
     async def estimate_gas(self, payload: dict[str, object]) -> int:
         """Estimate gas for a prepared transaction payload."""
 
-    async def broadcast(self, signed_transaction: str) -> str:
+    async def broadcast(self, signed_transaction: object) -> str:
         """Broadcast a signed transaction and return its transaction hash."""
 
     async def close(self) -> None:

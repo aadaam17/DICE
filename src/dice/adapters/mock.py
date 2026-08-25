@@ -21,6 +21,18 @@ class MockChainAdapter:
         self._block += 1
         return self._block
 
+    async def get_native_balance(self, address: str) -> int:
+        await asyncio.sleep(0)
+        return 1_000_000 if address else 0
+
+    async def get_erc20_balance(self, token_contract: str, address: str) -> int:
+        await asyncio.sleep(0)
+        return 1_000_000 if token_contract and address else 0
+
+    async def get_erc20_decimals(self, token_contract: str) -> int:
+        await asyncio.sleep(0)
+        return 6 if token_contract else 18
+
     async def estimate_gas(self, payload: dict[str, object]) -> int:
         await asyncio.sleep(0)
         return 21_000 + len(repr(payload))

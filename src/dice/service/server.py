@@ -39,6 +39,7 @@ class DiceService:
         if self._server:
             self._server.close()
             await self._server.wait_closed()
+            self._server = None
         await self.manager.stop_all()
 
     async def _handle_client(

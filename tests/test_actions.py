@@ -29,7 +29,7 @@ def _job() -> JobConfig:
         trigger=TriggerConfig(kind=TriggerKind.MANUAL),
         execution=ExecutionConfig(
             function_name="transfer",
-            arguments=["0x0000000000000000000000000000000000000000", "1000"],
+            arguments=["0x0000000000000000000000000000000000000000", "0.000000000000001"],
             asset_kind=SweepAssetKind.NATIVE,
         ),
     )
@@ -105,6 +105,51 @@ async def test_transfer_broadcasts_when_amount_meets_minimum():
     results = await WorkflowActionDispatcher().execute(
         job,
         [ActionSpec(kind=WorkflowActionKind.TRANSFER_NATIVE)],
+        context,
+    )
+
+    assert results[0].skipped is False
+    assert results[0].tx_hash is not None
+
+
+async def test_sweep_uses_wallet_balance_when_amount_is_not_configured():
+    adapter = MockChainAdapter(get_profile("ethereum"))
+    context = ActionContext(
+        adapter=adapter,
+        builder=TransactionBuilder(),
+        broadcaster=Broadcaster(adapter),
+    )
+    job = _job()
+    job.execution.arguments = []
+    job.execution.min_amount = 500_000
+
+    results = await WorkflowActionDispatcher().execute(
+        job,
+        [ActionSpec(kind=WorkflowActionKind.SWEEP)],
+        context,
+    )
+
+    assert results[0].skipped is False
+    assert results[0].tx_hash is not None
+
+
+async def test_decimal_token_amount_is_converted_to_smallest_units():
+    adapter = MockChainAdapter(get_profile("ethereum"))
+    context = ActionContext(
+        adapter=adapter,
+        builder=TransactionBuilder(),
+        broadcaster=Broadcaster(adapter),
+    )
+    job = _job()
+    job.execution.asset_kind = SweepAssetKind.ERC20
+    job.execution.token_contract = "0x0000000000000000000000000000000000000001"
+    job.execution.token_symbol = "USDC"
+    job.execution.arguments = ["1.5"]
+    job.execution.min_amount = 1_000_000
+
+    results = await WorkflowActionDispatcher().execute(
+        job,
+        [ActionSpec(kind=WorkflowActionKind.TRANSFER_ERC20)],
         context,
     )
 

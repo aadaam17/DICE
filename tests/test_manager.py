@@ -11,6 +11,7 @@ from dice.core.models import (
     TriggerKind,
     WalletConfig,
 )
+from dice.core.workflow import WorkflowActionKind
 from dice.core.storage import JobStore
 
 
@@ -70,3 +71,34 @@ async def test_continuous_job_keeps_running_until_stopped(tmp_path):
     await manager.stop(job.id)
 
     assert manager.states[job.id].status == JobStatus.STOPPED
+
+
+async def test_balance_trigger_sweeps_available_balance(tmp_path):
+    manager = JobManager(JobStore(tmp_path))
+    job = JobConfig(
+        id="job-0001",
+        name="Balance Sweep",
+        chain="ethereum",
+        wallet=WalletConfig(
+            name="Wallet",
+            address="0x0000000000000000000000000000000000000000",
+            destination="0x0000000000000000000000000000000000000001",
+        ),
+        rpc=RpcConfig(http_url="mock://local"),
+        trigger=TriggerConfig(
+            kind=TriggerKind.BALANCE_CHANGE,
+            params={"address": "0x0000000000000000000000000000000000000000"},
+        ),
+        execution=ExecutionConfig(function_name="sweep", arguments=[], min_amount=500_000),
+        job_type="balance_trigger",
+    )
+    manager.create_job(job)
+
+    assert manager.jobs[job.id].workflow is not None
+    assert manager.jobs[job.id].workflow.actions[0].kind == WorkflowActionKind.SWEEP
+
+    await manager.start(job.id)
+    await manager._tasks[job.id]
+
+    assert manager.states[job.id].status == JobStatus.COMPLETED
+    assert manager.states[job.id].tx_hash is not None

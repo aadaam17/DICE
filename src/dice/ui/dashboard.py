@@ -7,6 +7,7 @@ from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Button, DataTable, Footer, Header, Input, Static
 
 from dice.adapters.profiles import PROFILES
+from dice.core.amounts import decimal_amount_to_units, decimals_for_asset, units_to_decimal_amount
 from dice.core.models import (
     ContractConfig,
     ExecutionConfig,
@@ -102,6 +103,7 @@ class Dashboard(Container):
         height: auto;
         color: $text-muted;
         border-bottom: none;
+        padding-bottom: 1;
     }
 
     #field_1, #field_2, #field_3, #field_4 {
@@ -369,18 +371,18 @@ class Dashboard(Container):
             self._set_details("Fill the visible fields, then choose Continue.")
 
     def _wizard_step_content(self) -> tuple[str, str, list[str]]:
-        chain_list = ", ".join(f"{profile.name} ({key})" for key, profile in PROFILES.items())
+        chain_list = "\n".join(f"  {key} - {profile.name}" for key, profile in PROFILES.items())
         job_type_list = self._job_type_option_text()
         job_type = self._selected_job_type()
         steps = [
             (
                 "Select Job Type",
-                f"Choose a workflow plugin key.\n{job_type_list}",
+                f"Choose a workflow plugin key.\n\n{job_type_list}",
                 ["Job type key, e.g. contract_call", "", ""],
             ),
             (
                 "Select Blockchain",
-                f"Choose a supported EVM chain by key.\n{chain_list}",
+                f"Choose a supported chain by key.\n\n{chain_list}",
                 ["Chain key, e.g. ethereum", "", ""],
             ),
             (
@@ -395,8 +397,8 @@ class Dashboard(Container):
             ),
             (
                 "Sweep Type",
-                "Choose what happens after unlock: native coin or ERC20 token.",
-                ["native or erc20", "Token contract if ERC20", "Token symbol if ERC20"],
+                "Choose native coin or token. Solana supports native SOL in this build.",
+                ["native or erc20/token", "Token contract or mint", "Token symbol", "Token decimals optional"],
             ),
             (
                 "Staking Information",
@@ -410,8 +412,8 @@ class Dashboard(Container):
             ),
             (
                 "Withdrawal Function",
-                "Define the execution function, arguments, and optional minimum amount threshold.",
-                ["Function name, e.g. withdraw", "Arguments, e.g. poolId", "Minimum amount optional"],
+                "Use normal decimal amounts, e.g. 0.001 ETH or 1.5 USDC.",
+                ["Function name, e.g. sweep", "Arguments, e.g. 0.001", "Minimum amount, e.g. 0.001"],
             ),
             (
                 "Gas Strategy",
@@ -451,7 +453,7 @@ class Dashboard(Container):
         if step_name:
             hints = self._schema_fields_for_step(job_type, step_name)
             if hints:
-                body = body + "\n" + self._inline_field_hints(hints)
+                body = body + "\n\n" + self._inline_field_hints(hints)
                 placeholders = self._dynamic_placeholders(step_name, placeholders, hints)
         return title, body, placeholders
 
@@ -474,6 +476,7 @@ class Dashboard(Container):
                 self.wizard_data.get("asset_kind", self._job_type_default("asset_kind", "native")),
                 self.wizard_data.get("token_contract", ""),
                 self.wizard_data.get("token_symbol", ""),
+                self.wizard_data.get("token_decimals", ""),
             ],
             5: [self.wizard_data.get("contract_address", ""), self.wizard_data.get("abi_path", ""), ""],
             6: [
@@ -519,6 +522,7 @@ class Dashboard(Container):
             self.wizard_data["asset_kind"] = values[0] or self._job_type_default("asset_kind", "native")
             self.wizard_data["token_contract"] = values[1]
             self.wizard_data["token_symbol"] = values[2]
+            self.wizard_data["token_decimals"] = values[3]
         elif self.wizard_step == 5:
             self.wizard_data["contract_address"] = values[0]
             self.wizard_data["abi_path"] = values[1]
@@ -557,6 +561,9 @@ class Dashboard(Container):
         except JobValidationError as exc:
             self._set_details("Cannot save job: " + "; ".join(exc.errors))
             return
+        except ValueError as exc:
+            self._set_details(f"Cannot save job: {exc}")
+            return
         except RuntimeError as exc:
             self._set_details(f"Cannot save job: {exc}")
             return
@@ -583,6 +590,8 @@ class Dashboard(Container):
         gas_mode = self._gas_mode(self.wizard_data.get("gas_mode", "standard"))
         wallet_name = self.wizard_data.get("wallet_name", "Wallet")
         job_id = self.editing_job_id or self.manager.next_id()
+        token_symbol = self.wizard_data.get("token_symbol") or None
+        token_decimals = self._int_or_none(self.wizard_data.get("token_decimals", ""))
         return JobConfig(
             id=job_id,
             name=f"{PROFILES[chain].name} - {wallet_name}",
@@ -609,8 +618,15 @@ class Dashboard(Container):
                 arguments=self._split_arguments(self.wizard_data.get("function_arguments", "")),
                 asset_kind=asset_kind,
                 token_contract=self.wizard_data.get("token_contract") or None,
-                token_symbol=self.wizard_data.get("token_symbol") or None,
-                min_amount=self._int_or_none(self.wizard_data.get("min_amount", "")),
+                token_symbol=token_symbol,
+                token_decimals=token_decimals,
+                min_amount=self._amount_or_none(
+                    self.wizard_data.get("min_amount", ""),
+                    asset_kind,
+                    token_symbol,
+                    token_decimals,
+                    chain,
+                ),
             ),
             job_type=self.wizard_data.get("job_type", "contract_call"),
             gas=GasConfig(
@@ -644,6 +660,7 @@ class Dashboard(Container):
             "asset_kind": job.execution.asset_kind.value,
             "token_contract": job.execution.token_contract or "",
             "token_symbol": job.execution.token_symbol or "",
+            "token_decimals": "" if job.execution.token_decimals is None else str(job.execution.token_decimals),
             "contract_address": job.contract.address if job.contract else "",
             "abi_path": job.contract.abi_path if job.contract and job.contract.abi_path else "",
             "trigger_kind": job.trigger.kind.value,
@@ -651,7 +668,7 @@ class Dashboard(Container):
             "trigger_param_2": self._second_trigger_param(job.trigger.params),
             "function_name": job.execution.function_name,
             "function_arguments": ", ".join(str(item) for item in job.execution.arguments),
-            "min_amount": "" if job.execution.min_amount is None else str(job.execution.min_amount),
+            "min_amount": self._display_amount(job.execution.min_amount, job),
             "gas_mode": job.gas.mode.value,
             "priority_fee_gwei": "" if job.gas.priority_fee_gwei is None else str(job.gas.priority_fee_gwei),
             "max_fee_gwei": "" if job.gas.max_fee_gwei is None else str(job.gas.max_fee_gwei),
@@ -823,6 +840,32 @@ class Dashboard(Container):
         except ValueError:
             return None
 
+    def _amount_or_none(
+        self,
+        value: str,
+        asset_kind: SweepAssetKind,
+        token_symbol: str | None,
+        token_decimals: int | None,
+        chain: str,
+    ) -> int | None:
+        if not value:
+            return None
+        return decimal_amount_to_units(
+            value,
+            decimals_for_asset(asset_kind, token_symbol, token_decimals, chain),
+        )
+
+    def _display_amount(self, value: int | None, job: JobConfig) -> str:
+        if value is None:
+            return ""
+        decimals = decimals_for_asset(
+            job.execution.asset_kind,
+            job.execution.token_symbol,
+            job.execution.token_decimals,
+            job.chain,
+        )
+        return units_to_decimal_amount(value, decimals)
+
     def _wallet_id(self, value: str) -> str:
         normalized = value.strip().lower().replace(" ", "-")
         safe = "".join(character for character in normalized if character.isalnum() or character in "-_")
@@ -873,7 +916,7 @@ class Dashboard(Container):
             },
             "balance_trigger": {
                 "trigger_kind": "balance_change",
-                "function_name": "notify",
+                "function_name": "sweep",
                 "asset_kind": "native",
             },
             "event_trigger": {
@@ -919,7 +962,7 @@ class Dashboard(Container):
         by_key = {item["key"]: item["placeholder"] for item in hints}
         keys_by_step = {
             "wallet": ["wallet_name", "private_key", "wallet_address", "destination"],
-            "asset": ["asset_kind", "token_contract", "token_symbol"],
+            "asset": ["asset_kind", "token_contract", "token_symbol", "token_decimals"],
             "contract": ["contract_address", "abi_path", ""],
             "trigger": ["trigger_kind", "trigger_param_1", "trigger_param_2"],
             "execution": ["function_name", "arguments", "min_amount"],
@@ -935,7 +978,7 @@ class Dashboard(Container):
         labels = [item["label"] for item in hints if item.get("label")]
         if not labels:
             return ""
-        return "Fields: " + ", ".join(labels)
+        return "Fields:\n" + "\n".join(f"  {label}" for label in labels)
 
     def _job_type_items(self) -> list[object]:
         provider = getattr(self.manager, "available_job_types", None)
@@ -977,7 +1020,7 @@ class Dashboard(Container):
         rows: list[str] = []
         for item in self._job_type_items():
             if hasattr(item, "key") and hasattr(item, "name"):
-                rows.append(f"{item.key} ({item.name})")
+                rows.append(f"  {item.key} - {item.name}")
             elif isinstance(item, dict):
-                rows.append(f"{item.get('key')} ({item.get('name')})")
-        return ", ".join(rows) if rows else "contract_call (Contract Call)"
+                rows.append(f"  {item.get('key')} - {item.get('name')}")
+        return "\n".join(rows) if rows else "  contract_call - Contract Call"

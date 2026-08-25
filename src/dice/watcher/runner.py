@@ -14,7 +14,7 @@ class Watcher:
 
     async def wait_until_triggered(self, job: JobConfig) -> AsyncIterator[str]:
         while True:
-            if await self.evaluator.should_execute(job.trigger):
+            if await self.evaluator.should_execute(job.trigger, job):
                 yield "triggered"
                 return
             yield "waiting"

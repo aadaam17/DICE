@@ -15,15 +15,21 @@ class BalanceTriggerJob(JobPlugin):
             "Balance Trigger",
             "Run actions when a wallet balance crosses a condition.",
             [WorkflowTriggerKind.BALANCE],
-            [WorkflowActionKind.TRANSFER_NATIVE, WorkflowActionKind.CALL_CONTRACT, WorkflowActionKind.NOTIFY],
+            [
+                WorkflowActionKind.SWEEP,
+                WorkflowActionKind.TRANSFER_NATIVE,
+                WorkflowActionKind.CALL_CONTRACT,
+                WorkflowActionKind.NOTIFY,
+            ],
             [
                 field("wallet_address", "Watched wallet", "wallet", "0xWalletToWatch", True),
                 field("trigger_kind", "Trigger", "trigger", "balance_change"),
                 field("trigger_param_1", "Address", "trigger", "0xWalletToWatch", True),
-                field("function_name", "Action", "execution", "notify"),
+                field("function_name", "Action", "execution", "sweep"),
+                field("min_amount", "Minimum sweep amount", "execution", "0.001"),
             ],
         )
 
     @classmethod
     def default_workflow(cls) -> WorkflowSpec:
-        return workflow(WorkflowTriggerKind.BALANCE, [WorkflowActionKind.NOTIFY])
+        return workflow(WorkflowTriggerKind.BALANCE, [WorkflowActionKind.SWEEP])

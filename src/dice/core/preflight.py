@@ -116,15 +116,19 @@ class PreflightRunner:
             checks.append(self._pass("Wallet key", "Mock jobs do not require a private key"))
             return None
         if not job.wallet.private_key_ref:
-            checks.append(self._fail("Wallet key", "Real EVM jobs require an imported private key"))
+            checks.append(self._fail("Wallet key", f"Real {job.chain} jobs require an imported private key"))
             return None
         try:
-            signer_address = PrivateKeySigner(self.secret_store).address_for_ref(job.wallet.private_key_ref)
+            signer = PrivateKeySigner(self.secret_store)
+            if job.chain == "solana":
+                signer_address = signer.solana_address_for_ref(job.wallet.private_key_ref)
+            else:
+                signer_address = signer.address_for_ref(job.wallet.private_key_ref)
         except Exception as exc:
             checks.append(self._fail("Wallet key", str(exc)))
             return None
         configured = job.wallet.address.lower()
-        if configured.startswith("0x") and len(configured) == 42 and configured != signer_address.lower():
+        if configured and configured != signer_address.lower():
             checks.append(
                 self._fail(
                     "Wallet key",
@@ -141,6 +145,9 @@ class PreflightRunner:
         adapter: object,
         checks: list[PreflightCheck],
     ) -> bool:
+        if job.chain == "solana":
+            checks.append(self._pass("Contract", "Solana native SOL and SPL token jobs do not require an EVM contract"))
+            return False
         if not job.contract:
             checks.append(self._warning("Contract", "No contract configured; mock execution or plugin logic must supply payloads"))
             return False
@@ -177,6 +184,9 @@ class PreflightRunner:
     ) -> None:
         if isinstance(adapter, MockChainAdapter):
             checks.append(self._pass("Simulation", "Mock transaction path can estimate gas"))
+            return
+        if job.chain == "solana":
+            checks.append(self._pass("Simulation", "Solana transfer path can build and broadcast signed transactions"))
             return
         if signer_address is None or not contract_ready:
             checks.append(self._warning("Simulation", "Skipped until wallet, contract, and ABI checks pass"))

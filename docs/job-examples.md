@@ -1,7 +1,7 @@
 # DICE Job Input Examples
 
 This guide shows what to type into the current DICE TUI job wizard. It includes safe test examples
-using `mock://local` and real-life examples using live EVM RPCs.
+using `mock://local` and real-life examples using live EVM and Solana RPCs.
 
 Never paste a real private key into screenshots, chat, docs, issue reports, or logs. In the TUI,
 the private key is accepted once, encrypted into `storage/secrets`, and represented in the job file
@@ -189,14 +189,18 @@ Minimum amount optional:
 Arguments are comma-separated. The current TUI stores them as strings, so ABI-sensitive real calls
 should be tested carefully with `Check` before `Start`.
 
-Minimum amount is a dust protection guard. If the amount to transfer or sweep is lower than this
-number, DICE skips the transfer instead of wasting gas.
+Minimum amount is a dust protection guard. Enter normal decimal amounts, not wei or raw token
+units. If the amount to transfer or sweep is lower than this number, DICE skips the transfer instead
+of wasting gas.
+
+For ERC20 jobs, use normal token decimals and fill `Token decimals` if needed. Common values:
+`USDC = 6`, `USDT = 6`, `DAI = 18`, `LINK = 18`, `WETH = 18`, `WBTC = 8`.
 
 Example for native ETH-style amounts:
 
 ```text
-Arguments: 100000000000000
-Minimum amount optional: 1000000000000000
+Arguments: 0.0001
+Minimum amount optional: 0.001
 ```
 
 This means: if the amount is `0.0001 ETH` but your minimum is `0.001 ETH`, skip it.
@@ -204,8 +208,8 @@ This means: if the amount is `0.0001 ETH` but your minimum is `0.001 ETH`, skip 
 Example for a 6-decimal ERC20 token such as many USDC deployments:
 
 ```text
-Arguments: 100000
-Minimum amount optional: 1000000
+Arguments: 0.1
+Minimum amount optional: 1
 ```
 
 This means: if the amount is `0.1 USDC` but your minimum is `1 USDC`, skip it.
@@ -365,14 +369,15 @@ Destination wallet: 0x0000000000000000000000000000000000000000
 native or erc20: erc20
 Token contract if ERC20: 0x0000000000000000000000000000000000000001
 Token symbol if ERC20: TEST
+Token decimals optional: 6
 Staking contract:
 ABI path optional:
 Unlock method: balance_change
 Parameter 1: 0x0000000000000000000000000000000000000000
 Parameter 2:
 Function name: transfer
-Arguments: 0x0000000000000000000000000000000000000000, 1000000
-Minimum amount optional: 1000000
+Arguments: 0x0000000000000000000000000000000000000000, 1
+Minimum amount optional: 1
 Gas mode: standard
 Priority fee gwei:
 Max fee gwei:
@@ -395,6 +400,7 @@ Destination wallet: 0x0000000000000000000000000000000000000000
 native or erc20: native
 Token contract if ERC20:
 Token symbol if ERC20:
+Token decimals optional:
 Staking contract:
 ABI path optional:
 Unlock method: event
@@ -422,14 +428,15 @@ Destination wallet: 0x0000000000000000000000000000000000000000
 native or erc20: native
 Token contract if ERC20:
 Token symbol if ERC20:
+Token decimals optional:
 Staking contract:
 ABI path optional:
 Unlock method: timestamp
 Parameter 1: 1767225600
 Parameter 2:
 Function name: transfer
-Arguments: 0x0000000000000000000000000000000000000000, 1000000000000000
-Minimum amount optional: 1000000000000000
+Arguments: 0x0000000000000000000000000000000000000000, 0.001
+Minimum amount optional: 0.001
 Gas mode: standard
 Priority fee gwei:
 Max fee gwei:
@@ -504,14 +511,15 @@ Destination wallet: 0xYourBaseWallet
 native or erc20: native
 Token contract if ERC20:
 Token symbol if ERC20:
+Token decimals optional:
 Staking contract: 0xBaseVaultContract
 ABI path optional: C:\Users\DELL\Documents\Projects\Dice\abis\base-vault.json
 Unlock method: manual
 Parameter 1:
 Parameter 2:
 Function name: withdraw
-Arguments: 1000000000000000000
-Minimum amount optional: 1000000000000000
+Arguments: 1
+Minimum amount optional: 0.001
 Gas mode: aggressive
 Priority fee gwei:
 Max fee gwei:
@@ -534,22 +542,22 @@ Destination wallet: 0xYourColdStorageWallet
 native or erc20: erc20
 Token contract if ERC20: 0xYourTokenContract
 Token symbol if ERC20: USDC
+Token decimals optional: 6
 Staking contract: 0xYourTokenContract
 ABI path optional: C:\Users\DELL\Documents\Projects\Dice\abis\erc20.json
 Unlock method: balance_change
 Parameter 1: 0xYourPolygonHotWallet
 Parameter 2:
 Function name: transfer
-Arguments: 0xYourColdStorageWallet, 1000000
-Minimum amount optional: 1000000
+Arguments: 0xYourColdStorageWallet, 1
+Minimum amount optional: 1
 Gas mode: standard
 Priority fee gwei:
 Max fee gwei:
 Replacement percent: 15
 ```
 
-Note: ERC20 token amounts use the token's smallest unit. For a 6-decimal token, `1000000` means
-`1.0` token.
+Note: ERC20 token amounts are typed as normal decimals. For USDC, type `1` for one token.
 
 ### Real 4: BNB Chain Event-Based Reward Claim
 
@@ -625,13 +633,14 @@ Destination wallet: 0xRecipientWallet
 native or erc20: native
 Token contract if ERC20:
 Token symbol if ERC20:
+Token decimals optional:
 Staking contract:
 ABI path optional:
 Unlock method: timestamp
 Parameter 1: 1767225600
 Parameter 2:
 Function name: transfer
-Arguments: 0xRecipientWallet, 10000000000000000
+Arguments: 0xRecipientWallet, 0.01
 Gas mode: custom
 Priority fee gwei: 0.001
 Max fee gwei: 0.05
@@ -658,6 +667,7 @@ Destination wallet: 0xOperatorWallet
 native or erc20: native
 Token contract if ERC20:
 Token symbol if ERC20:
+Token decimals optional:
 Staking contract:
 ABI path optional:
 Unlock method: balance_change
@@ -671,12 +681,11 @@ Max fee gwei:
 Replacement percent: 15
 ```
 
-Current limitation: notification handlers are workflow-level placeholders until real action handlers
-are implemented.
-
 ### Real 8: Balance Trigger On Ethereum
 
-Scenario: react when an address balance changes.
+Scenario: watch a hot wallet and sweep native ETH to an operator wallet when the balance reaches
+your minimum amount. DICE calculates the sweep amount from the live wallet balance. For native
+coins, it leaves enough native coin behind to pay the transfer gas.
 
 ```text
 Job type: balance_trigger
@@ -690,20 +699,104 @@ Destination wallet: 0xOperatorWallet
 native or erc20: native
 Token contract if ERC20:
 Token symbol if ERC20:
+Token decimals optional:
 Staking contract:
 ABI path optional:
 Unlock method: balance_change
 Parameter 1: 0xWalletToMonitor
 Parameter 2:
-Function name: notify
+Function name: sweep
 Arguments:
+Minimum amount optional: 0.001
 Gas mode: standard
 Priority fee gwei:
 Max fee gwei:
 Replacement percent: 15
 ```
 
-### Real 9: Custom Workflow On Polygon
+If the wallet balance is lower than `0.001 ETH`, DICE keeps watching instead of sending a tiny
+transaction.
+
+For sweep or transfer jobs, `Parameter 1` must match `Wallet address`. DICE can watch any address
+for notification jobs, but it can only move funds from a wallet whose private key was imported.
+
+### Real 9: Solana Native SOL Balance Sweep
+
+Scenario: watch a Solana hot wallet and sweep SOL to another Solana wallet when the balance reaches
+your minimum amount. DICE uses lamports internally, but you type normal SOL amounts.
+
+```text
+Job type: balance_trigger
+Chain: solana
+HTTP RPC: https://api.mainnet-beta.solana.com
+WebSocket RPC optional:
+Wallet name: Solana Hot Wallet
+Private key: YOUR_SOLANA_BASE58_KEYPAIR_OR_JSON_BYTE_ARRAY
+Wallet address: YourSolanaHotWalletAddress
+Destination wallet: YourSolanaDestinationWalletAddress
+native or erc20/token: native
+Token contract if token:
+Token symbol if token:
+Token decimals optional:
+Staking contract:
+ABI path optional:
+Unlock method: balance_change
+Parameter 1: YourSolanaHotWalletAddress
+Parameter 2:
+Function name: sweep
+Arguments:
+Minimum amount optional: 0.01
+Gas mode: standard
+Priority fee gwei:
+Max fee gwei:
+Replacement percent: 15
+Run mode: continuous
+Repeat delay seconds: 5
+Poll interval seconds: 1
+```
+
+If the wallet balance is lower than `0.01 SOL`, DICE keeps watching.
+
+### Real 10: Solana SPL Token Sweep
+
+Scenario: watch a Solana wallet for an SPL token and sweep the token to another Solana wallet.
+DICE derives the associated token accounts from the wallet addresses and token mint.
+
+```text
+Job type: token_sweep
+Chain: solana
+HTTP RPC: https://api.mainnet-beta.solana.com
+WebSocket RPC optional:
+Wallet name: Solana Token Wallet
+Private key: YOUR_SOLANA_BASE58_KEYPAIR_OR_JSON_BYTE_ARRAY
+Wallet address: YourSolanaTokenWalletAddress
+Destination wallet: YourSolanaDestinationWalletAddress
+native or erc20/token: erc20
+Token contract or mint: SPLTokenMintAddress
+Token symbol: USDC
+Token decimals optional: 6
+Staking contract:
+ABI path optional:
+Unlock method: balance_change
+Parameter 1: YourSolanaTokenWalletAddress
+Parameter 2:
+Function name: transfer
+Arguments:
+Minimum amount optional: 1
+Gas mode: standard
+Priority fee gwei:
+Max fee gwei:
+Replacement percent: 15
+Run mode: continuous
+Repeat delay seconds: 5
+Poll interval seconds: 1
+```
+
+If `Arguments` is empty, DICE sweeps the current SPL token balance. If `Minimum amount optional` is
+`1`, DICE skips balances below one token. The wallet still needs a little SOL to pay transaction
+fees and to create the destination associated token account when needed.
+
+### Real 11: Custom Workflow On Polygon
 
 Scenario: save a custom manual workflow template that can later be expanded with plugin-specific
 forms and real action handlers.

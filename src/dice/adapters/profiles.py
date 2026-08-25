@@ -46,6 +46,14 @@ PROFILES: dict[str, ChainProfile] = {
         native_symbol="POL",
         explorer_url="https://polygonscan.com",
     ),
+    "solana": ChainProfile(
+        key="solana",
+        name="Solana",
+        chain_id=0,
+        native_symbol="SOL",
+        explorer_url="https://solscan.io",
+        default_http_rpc="https://api.mainnet-beta.solana.com",
+    ),
 }
 
 

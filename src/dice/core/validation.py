@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from dice.adapters.profiles import PROFILES
 from dice.core.models import JobConfig, SweepAssetKind, TriggerKind
+from dice.core.workflow import WorkflowActionKind
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,10 +37,16 @@ def validate_job(job: JobConfig) -> ValidationResult:
         errors.append("HTTP RPC endpoint is required")
     if not job.wallet.name.strip():
         errors.append("Wallet name is required")
-    if not _looks_like_address(job.wallet.address):
-        warnings.append("Wallet address does not look like a normal EVM address")
-    if not _looks_like_address(job.wallet.destination):
-        warnings.append("Destination address does not look like a normal EVM address")
+    if job.chain == "solana":
+        if not _looks_like_solana_address(job.wallet.address):
+            warnings.append("Wallet address does not look like a normal Solana address")
+        if not _looks_like_solana_address(job.wallet.destination):
+            warnings.append("Destination address does not look like a normal Solana address")
+    else:
+        if not _looks_like_evm_address(job.wallet.address):
+            warnings.append("Wallet address does not look like a normal EVM address")
+        if not _looks_like_evm_address(job.wallet.destination):
+            warnings.append("Destination address does not look like a normal EVM address")
     if not job.execution.function_name.strip():
         errors.append("Execution function is required")
     if job.execution.min_amount is not None and job.execution.min_amount < 0:
@@ -47,9 +54,17 @@ def validate_job(job: JobConfig) -> ValidationResult:
 
     if job.execution.asset_kind == SweepAssetKind.ERC20:
         if not job.execution.token_contract:
-            errors.append("ERC20 sweep requires a token contract")
+            if job.chain == "solana":
+                errors.append("Solana SPL token sweep requires a token mint")
+            else:
+                errors.append("ERC20 sweep requires a token contract")
         if not job.execution.token_symbol:
-            warnings.append("ERC20 sweep should include a token symbol")
+            if job.chain == "solana":
+                warnings.append("Solana SPL token sweep should include a token symbol")
+            else:
+                warnings.append("ERC20 sweep should include a token symbol")
+        if job.execution.token_decimals is not None and not 0 <= job.execution.token_decimals <= 255:
+            errors.append("ERC20 token decimals must be between 0 and 255")
 
     if job.trigger.kind == TriggerKind.EVENT:
         _require_trigger_param(job, "event_name", errors)
@@ -62,6 +77,8 @@ def validate_job(job: JobConfig) -> ValidationResult:
         _require_trigger_param(job, "function_name", errors)
     elif job.trigger.kind == TriggerKind.BALANCE_CHANGE:
         _require_trigger_param(job, "address", errors)
+        if _moves_funds(job) and _normalized(job.trigger.params.get("address")) != _normalized(job.wallet.address):
+            errors.append("Balance sweep trigger address must match the wallet address")
 
     if job.gas.replacement_percent < 0:
         errors.append("Replacement percent cannot be negative")
@@ -84,8 +101,30 @@ def ensure_valid_job(job: JobConfig) -> ValidationResult:
     return result
 
 
-def _looks_like_address(value: str) -> bool:
+def _looks_like_evm_address(value: str) -> bool:
     return value.startswith("0x") and len(value) == 42
+
+
+def _looks_like_solana_address(value: str) -> bool:
+    if not 32 <= len(value) <= 44:
+        return False
+    alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+    return all(character in alphabet for character in value)
+
+
+def _moves_funds(job: JobConfig) -> bool:
+    fund_actions = {
+        WorkflowActionKind.SWEEP,
+        WorkflowActionKind.TRANSFER_NATIVE,
+        WorkflowActionKind.TRANSFER_ERC20,
+    }
+    if job.workflow and any(action.kind in fund_actions for action in job.workflow.actions):
+        return True
+    return job.execution.function_name.lower() in {"sweep", "transfer"}
+
+
+def _normalized(value: object) -> str:
+    return str(value or "").lower()
 
 
 def _require_trigger_param(job: JobConfig, key: str, issues: list[str]) -> None:

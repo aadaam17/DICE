@@ -20,9 +20,9 @@ class ScheduledTransferJob(JobPlugin):
                 field("trigger_kind", "Schedule trigger", "trigger", "timestamp", True),
                 field("trigger_param_1", "Unix timestamp", "trigger", "1767225600", True),
                 field("destination", "Recipient", "wallet", "0xRecipient", True),
-                field("asset_kind", "Asset", "asset", "native or erc20"),
-                field("arguments", "Amount", "execution", "1000000000000000", True),
-                field("min_amount", "Minimum amount", "execution", "1000000000000000"),
+                field("asset_kind", "Asset", "asset", "native or erc20/token"),
+                field("arguments", "Amount", "execution", "0.001", True),
+                field("min_amount", "Minimum amount", "execution", "0.001"),
             ],
         )
 

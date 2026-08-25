@@ -1,7 +1,7 @@
 [project]
 name = "dice-chain-executor"
-version = "0.1.1"
-description = "Deterministic Intelligent Chain Executor, a Python TUI for EVM job orchestration."
+version = "0.1.2"
+description = "Deterministic Intelligent Chain Executor, a Python TUI for multi-chain job orchestration."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
@@ -36,6 +36,8 @@ dependencies = [
     "textual>=0.80.0",
     "cryptography>=46.0.7",
     "web3>=7.15.0",
+    "solana>=0.36.0",
+    "solders>=0.26.0",
 ]
 
 [project.optional-dependencies]

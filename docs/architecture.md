@@ -1,7 +1,7 @@
 # DICE Architecture
 
 DICE is a terminal-first blockchain automation platform. It started as a staking watcher/sweep tool,
-but the target architecture is now a generic EVM workflow engine.
+but the target architecture is now a generic multi-chain workflow engine.
 
 The core abstraction is:
 
@@ -177,11 +177,17 @@ always explicit.
 DICE chooses the chain adapter from the job RPC configuration:
 
 - `mock://...` uses the deterministic mock adapter for local workflow testing.
-- `http://...` or `https://...` uses the Web3 EVM adapter for real chain execution.
+- EVM chain profiles use the Web3 EVM adapter for real chain execution.
+- `solana` uses the Solana adapter for native SOL and SPL token balance watching, transfers, and sweeps.
 
 The Web3 adapter verifies that the connected RPC chain ID matches the selected chain profile before
 execution. Real contract execution requires a contract address, ABI path, function name, and function
 arguments.
+
+The Solana adapter supports native SOL and SPL token execution. It reads SOL balances in lamports,
+builds System Program transfers, reads SPL balances from associated token accounts, builds checked
+SPL token transfers, creates destination associated token accounts idempotently, signs with a
+Solana keypair from the encrypted vault, and broadcasts through Solana RPC.
 
 Adapters also expose small inspection hooks for preflight. The mock adapter reports deterministic
 success for local tests. The EVM adapter can fetch bytecode and rejects RPCs whose chain ID does not
@@ -191,7 +197,7 @@ match the selected profile.
 
 Signing is isolated behind a signer layer. The execution engine asks the signer to decrypt the
 private key from `private_key_ref`, sign the transaction in memory, and return only the raw signed
-transaction for broadcasting.
+transaction for broadcasting. EVM jobs use Ethereum private keys. Solana jobs use Solana keypairs.
 
 ## Persistence
 

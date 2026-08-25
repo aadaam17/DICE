@@ -81,6 +81,7 @@ class ExecutionConfig:
     asset_kind: SweepAssetKind = SweepAssetKind.NATIVE
     token_contract: str | None = None
     token_symbol: str | None = None
+    token_decimals: int | None = None
     min_amount: int | None = None
 
 
@@ -133,6 +134,7 @@ class JobConfig:
                 asset_kind=SweepAssetKind(data["execution"].get("asset_kind", SweepAssetKind.NATIVE)),
                 token_contract=data["execution"].get("token_contract"),
                 token_symbol=data["execution"].get("token_symbol"),
+                token_decimals=data["execution"].get("token_decimals"),
                 min_amount=data["execution"].get("min_amount"),
             ),
             job_type=data.get("job_type", "contract_call"),

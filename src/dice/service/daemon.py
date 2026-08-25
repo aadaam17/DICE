@@ -10,10 +10,17 @@ from dice.service.server import DiceService
 async def main(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
     service = DiceService(host=host, port=port)
     print(f"DICE daemon listening on {host}:{port}")
+    interrupted = False
     try:
         await service.serve_forever()
+    except asyncio.CancelledError:
+        interrupted = True
     finally:
+        if interrupted:
+            print("\nDICE daemon shutting down...")
         await service.stop()
+        if interrupted:
+            print("DICE daemon stopped.")
 
 
 def run() -> None:
@@ -21,7 +28,10 @@ def run() -> None:
     parser.add_argument("--host", default=DEFAULT_HOST)
     parser.add_argument("--port", default=DEFAULT_PORT, type=int)
     args = parser.parse_args()
-    asyncio.run(main(args.host, args.port))
+    try:
+        asyncio.run(main(args.host, args.port))
+    except KeyboardInterrupt:
+        print("\nDICE daemon stopped.")
 
 
 if __name__ == "__main__":

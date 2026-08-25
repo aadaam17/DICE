@@ -37,6 +37,59 @@ class EVMChainAdapter:
     async def latest_block(self) -> int:
         return int(self._w3.eth.block_number)
 
+    async def get_native_balance(self, address: str) -> int:
+        return int(self._w3.eth.get_balance(self._w3.to_checksum_address(address)))
+
+    async def get_native_transferable_balance(
+        self,
+        job: JobConfig,
+        from_address: str,
+        destination: str,
+    ) -> int:
+        sender = self._w3.to_checksum_address(from_address)
+        tx = {
+            "from": sender,
+            "to": self._w3.to_checksum_address(destination),
+            "value": 0,
+            "nonce": self._w3.eth.get_transaction_count(sender),
+            "chainId": self.profile.chain_id,
+        }
+        tx.update(self._gas_price_fields(job))
+        gas_limit = int(self._w3.eth.estimate_gas(tx))
+        gas_price = int(tx.get("gasPrice") or tx.get("maxFeePerGas") or self._w3.eth.gas_price)
+        spendable = await self.get_native_balance(sender)
+        return max(spendable - (gas_limit * gas_price), 0)
+
+    async def get_erc20_balance(self, token_contract: str, address: str) -> int:
+        contract = self._w3.eth.contract(
+            address=self._w3.to_checksum_address(token_contract),
+            abi=[
+                {
+                    "constant": True,
+                    "inputs": [{"name": "account", "type": "address"}],
+                    "name": "balanceOf",
+                    "outputs": [{"name": "", "type": "uint256"}],
+                    "type": "function",
+                }
+            ],
+        )
+        return int(contract.functions.balanceOf(self._w3.to_checksum_address(address)).call())
+
+    async def get_erc20_decimals(self, token_contract: str) -> int:
+        contract = self._w3.eth.contract(
+            address=self._w3.to_checksum_address(token_contract),
+            abi=[
+                {
+                    "constant": True,
+                    "inputs": [],
+                    "name": "decimals",
+                    "outputs": [{"name": "", "type": "uint8"}],
+                    "type": "function",
+                }
+            ],
+        )
+        return int(contract.functions.decimals().call())
+
     async def estimate_gas(self, payload: dict[str, object]) -> int:
         tx = payload.get("transaction")
         if isinstance(tx, dict):
@@ -96,6 +149,27 @@ class EVMChainAdapter:
         }
         tx.update(self._gas_price_fields(job))
         tx["gas"] = int(self._w3.eth.estimate_gas(tx))
+        return tx
+
+    async def build_native_sweep_transfer(
+        self,
+        job: JobConfig,
+        from_address: str,
+        destination: str,
+    ) -> dict[str, Any]:
+        sender = self._w3.to_checksum_address(from_address)
+        tx = {
+            "from": sender,
+            "to": self._w3.to_checksum_address(destination),
+            "value": 0,
+            "nonce": self._w3.eth.get_transaction_count(sender),
+            "chainId": self.profile.chain_id,
+        }
+        tx.update(self._gas_price_fields(job))
+        tx["gas"] = int(self._w3.eth.estimate_gas(tx))
+        gas_price = int(tx.get("gasPrice") or tx.get("maxFeePerGas") or self._w3.eth.gas_price)
+        balance = await self.get_native_balance(sender)
+        tx["value"] = max(balance - (int(tx["gas"]) * gas_price), 0)
         return tx
 
     async def build_erc20_transfer(

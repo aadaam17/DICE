@@ -13,14 +13,20 @@ This first build provides:
 - A workflow model built from triggers, conditions, and actions
 - A job plugin registry for extensible automation templates
 - Job-type form schemas used by the TUI for dynamic wizard guidance
-- Chain adapter interfaces and EVM chain profiles
+- Chain adapter interfaces with EVM and Solana profiles
 - A Web3-based EVM adapter for real RPC execution
+- A Solana adapter for native SOL balance watching and transfers
 - Encrypted private-key references and a signer layer
 - A reusable wallet vault for named encrypted wallet keys
 - Preflight checks before jobs start
 - Non-broadcast transaction simulation with gas and max-cost estimates
 - Workflow action handlers for contract calls, transfers, waits, notifications, withdrawals, and sweeps
 - Minimum amount thresholds so tiny sweeps/transfers can be skipped before wasting gas
+- Balance-trigger sweeps can calculate the transfer amount from the live watched wallet balance
+- User-entered transfer and sweep amounts use normal decimals like `0.001` or `1.5`
+- ERC20 jobs support token decimals, so `1` USDC means one USDC instead of raw token units
+- Sweep timing logs show trigger, build, sign, broadcast, and total execution timing
+- Native balance sweeps use a faster transaction-build path to reduce duplicate RPC calls
 - One-shot and continuous run modes for active watch jobs
 - Dependency security auditing in CI
 - Watcher, trigger, builder, broadcaster, and executor boundaries
@@ -116,14 +122,14 @@ the TUI falls back to embedded development mode.
 
 Use `mock://local` when testing the DICE workflow without sending blockchain transactions.
 
-Use a real HTTP RPC URL when you want the Web3 EVM adapter:
+Use a real HTTP RPC URL when you want live chain execution:
 
 ```text
 https://...
 http://...
 ```
 
-Real execution currently requires:
+For EVM execution, DICE currently requires:
 
 - a supported EVM chain profile
 - a reachable RPC whose chain ID matches the selected chain
@@ -137,6 +143,19 @@ plugin rules, RPC connectivity, wallet key availability, signer address, contrac
 function, and transaction simulation where those checks apply. Real EVM simulation builds the
 transaction, estimates gas, and shows the maximum native-token fee without signing or broadcasting.
 If any required check fails, the job is marked `error` and does not start.
+
+For Solana execution, DICE supports native SOL and SPL token watch/sweep/transfer jobs. Use:
+
+```text
+Chain: solana
+HTTP RPC: https://api.mainnet-beta.solana.com
+Asset type: native
+```
+
+For SPL tokens, use `erc20/token`, paste the Solana token mint into the token contract/mint field,
+and enter normal decimal token amounts. DICE uses associated token accounts and creates the
+destination associated token account idempotently when needed. Solana private keys can be imported
+as a base58 keypair string or a JSON byte array.
 
 ## Job Plugins
 
@@ -189,7 +208,7 @@ Exit
 `Create Job` opens a guided wizard that follows this flow:
 
 1. Select job type from the plugin registry.
-2. Select blockchain: Ethereum, BNB Chain, Arbitrum, Base, Optimism, Polygon.
+2. Select blockchain: Ethereum, BNB Chain, Arbitrum, Base, Optimism, Polygon, Solana.
 3. Configure RPC endpoint: HTTP RPC and optional WebSocket RPC.
 4. Configure wallet: wallet name, private key, wallet address, destination wallet.
 5. Choose sweep type: native coin or ERC20 token.
